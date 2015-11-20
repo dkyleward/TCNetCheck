@@ -169,7 +169,11 @@ dBox "NetworkCheck" center,center,125,25 toolbox NoKeyboard Title:"Network Check
         else RunDbox("Benefits")
     enditem
     
-    
+    button "Adv Spatial Join (link)" same, after, 23 do
+        if Args.General.hwyDBD = null
+        then ShowMessage("At a minimum, the highway DBD \nmust be specified using 'Tool Setup'.")
+        else RunDbox("LinkJoin")
+    enditem    
     
     
     
@@ -872,68 +876,75 @@ dBox "Interchange" center,center,125,25 toolbox NoKeyboard Title:"Interchange Co
         end
         
         // Initialize the arrays of fac types
-        if Args.Interchange.restrAccess = null then Args.Interchange.restrAccess = {}
-        if Args.Interchange.ramps = null then Args.Interchange.ramps = {}
+        // if Args.Interchange.restrAccess = null then Args.Interchange.restrAccess = {}
+        // if Args.Interchange.ramps = null then Args.Interchange.ramps = {}
         
     enditem
     
     // Main scroll list holding all field names
-    Text "Unique Facility Types" 60,.5,30
-    Scroll List " " same, after, 29, 20 List: Args.General.uniqueFacType Multiple Variable:selFields
+    // Text "Unique Facility Types" 60,.5,30
+    // Scroll List " " same, after, 29, 20 List: Args.General.uniqueFacType Multiple Variable:selFields
     
-    // Access Restricted Functional Classes
-    Text "Restricted Access Fac Types" 15,2,35
-    Scroll List " " 15, after, 30, 5 List: Args.Interchange.restrAccess
-    button " " after, same, 5 Prompt:"<<" do
-        if Args.Interchange.restrAccess[1] = null then do
-            for i = 1 to selFields.length do
-                if i = 1 then Args.Interchange.restrAccess[1] = Args.General.uniqueFacType[selFields[i]]
-                else Args.Interchange.restrAccess = Args.Interchange.restrAccess + {Args.General.uniqueFacType[selFields[i]]}
-            end
-        end else do
-            for i = 1 to selFields.length do
-                Args.Interchange.restrAccess = Args.Interchange.restrAccess + {Args.General.uniqueFacType[selFields[i]]}
-            end
-        end
-    enditem
-    button " " same, after, 5 Prompt:"X" do
-        Args.Interchange.restrAccess = {}
-    enditem
+    // Access Restricted Query
+    Text "Restricted Access Query" 15,2,35
+    Text "Select * where" same, after, 35
+    Edit Text same, after, 40, 5 Variable: Args.Interchange.restrAccessQry
     
-    // Ramp Functional Classes
-    Text "Ramp Fac Types" 15,9,35
-    Scroll List " " same, after, 30, 5 List: Args.Interchange.ramps
-    button " " after, same, 5 Prompt:"<<" do
-        if Args.Interchange.ramps[1] = null then do
-            for i = 1 to selFields.length do
-                if i = 1 then Args.Interchange.ramps[1] = Args.General.uniqueFacType[selFields[i]]
-                else Args.Interchange.ramps = Args.Interchange.ramps + {Args.General.uniqueFacType[selFields[i]]}
-            end
-        end else do
-            for i = 1 to selFields.length do
-                Args.Interchange.ramps = Args.Interchange.ramps + {Args.General.uniqueFacType[selFields[i]]}
-            end
-        end
-    enditem
+    // Scroll List " " 15, after, 30, 5 List: Args.Interchange.restrAccess
+    // button " " after, same, 5 Prompt:"<<" do
+        // if Args.Interchange.restrAccess[1] = null then do
+            // for i = 1 to selFields.length do
+                // if i = 1 then Args.Interchange.restrAccess[1] = Args.General.uniqueFacType[selFields[i]]
+                // else Args.Interchange.restrAccess = Args.Interchange.restrAccess + {Args.General.uniqueFacType[selFields[i]]}
+            // end
+        // end else do
+            // for i = 1 to selFields.length do
+                // Args.Interchange.restrAccess = Args.Interchange.restrAccess + {Args.General.uniqueFacType[selFields[i]]}
+            // end
+        // end
+    // enditem
+    // button " " same, after, 5 Prompt:"X" do
+        // Args.Interchange.restrAccess = {}
+    // enditem
     
-    button " " same, after, 5 Prompt:"X" do
-        Args.Interchange.ramps = {}
-    enditem
+    // Ramp Query
+    Text "Ramp Query" same, after,35
+    Text "Select * where" same, after, 35
+    Edit Text same, after, 40, 5 Variable: Args.Interchange.rampQry
+    
+    // Scroll List " " same, after, 30, 5 List: Args.Interchange.ramps
+    // button " " after, same, 5 Prompt:"<<" do
+        // if Args.Interchange.ramps[1] = null then do
+            // for i = 1 to selFields.length do
+                // if i = 1 then Args.Interchange.ramps[1] = Args.General.uniqueFacType[selFields[i]]
+                // else Args.Interchange.ramps = Args.Interchange.ramps + {Args.General.uniqueFacType[selFields[i]]}
+            // end
+        // end else do
+            // for i = 1 to selFields.length do
+                // Args.Interchange.ramps = Args.Interchange.ramps + {Args.General.uniqueFacType[selFields[i]]}
+            // end
+        // end
+    // enditem
+    
+    // button " " same, after, 5 Prompt:"X" do
+        // Args.Interchange.ramps = {}
+    // enditem
     
     
     // Check Interchanges Button
-    button " " 15, 16, 20 Prompt:"Check Interchanges" do
+    button " " same, after, 20 Prompt:"Check Interchanges" do
         
-        // Test to make sure all required fields are selected
-        if Args.Interchange.restrAccess = null or Args.Interchange.ramps = null or Args.General.nodeTAZIdField = null then do
-            ShowMessage("Not all required fields are selected.")
+        // Test to make sure both queries exist
+        if Args.Interchange.restrAccessQry = null or Args.Interchange.rampQry = null then do
+            ShowMessage("Not all required data has been filled out.")
+        end else if Args.General.nodeTAZIdField = null then do
+            ShowMessage("A node field specifying centroid IDs must be given.")
         end else do
         
-        // In order to reference record fields easily,
-        // put the Args.General.llayer (line layer name)
-        // into a simple, local variables
-        llayer = Args.General.llayer
-        
+            // In order to reference record fields easily,
+            // put the Args.General.llayer (line layer name)
+            // into a simple, local variables
+            llayer = Args.General.llayer
             
             // Create Map
             map = RunMacro("Create Highway Map")
@@ -943,6 +954,12 @@ dBox "Interchange" center,center,125,25 toolbox NoKeyboard Title:"Interchange Co
             errorSet = RunMacro("G30 create set","Stray Nodes (to delete)")
             SetDisplayStatus(Args.General.nlayer + "|","Invisible")
             
+            // Create link selection sets for ramps and restricted access links
+            SetLayer(llayer)
+            rampSet  = RunMacro("G30 create set","Ramp Links")
+            SelectByQuery(rampSet, "Several", "Select * where " + Args.Interchange.rampQry)
+            restrSet = RunMacro("G30 create set","Restricted Access Links")
+            SelectByQuery(restrSet, "Several", "Select * where " + Args.Interchange.restrAccessQry)
             
             // Create a selection set of non-centroid nodes to check
             SetLayer(Args.General.nlayer)
@@ -973,6 +990,7 @@ dBox "Interchange" center,center,125,25 toolbox NoKeyboard Title:"Interchange Co
                     // Determine presence of restricted and non-restricted access links
                     restrAccess = 0
                     nonrestrAccess = 0
+                    /*
                     facTypePos = ArrayPosition(Args.General.linkFieldList, {Args.General.facType},)
                     for i = 1 to a_links.length do
                         linkRH = LocateRecord(Args.General.llayer + "|","ID",{a_links[i]},)
@@ -984,6 +1002,15 @@ dBox "Interchange" center,center,125,25 toolbox NoKeyboard Title:"Interchange Co
                         end else if ArrayPosition(Args.Interchange.ramps,{vals[facTypePos][2]},) = 0 then do
                             nonrestrAccess = nonrestrAccess + 1
                         end
+                    end
+                    */
+                    SetLayer(llayer)
+                    for i = 1 to a_links.length do
+                        linkRH = LocateRecord(Args.General.llayer + "|","ID",{a_links[i]},)
+                        // if link is restricted access
+                        if IsMember(restrSet, linkRH) then restrAccess = restrAccess + 1
+                        // if link is not in the restricted access set and not a ramp
+                        if not(IsMember(restrSet, linkRH)) and not(IsMember(rampSet, linkRH)) then nonrestrAccess = nonrestrAccess + 1
                     end
                     
                     // Determine if this node is a potential problem
@@ -1010,19 +1037,21 @@ dBox "Interchange" center,center,125,25 toolbox NoKeyboard Title:"Interchange Co
             // determine which are near ramp links
             
             // Select ramp links
-            SetLayer(Args.General.llayer)
-            for i = 1 to Args.Interchange.ramps.length do
-                rampQry = "Select * where " + Args.General.facType + " = " + String(Args.Interchange.ramps[i])
-                n1 = SelectByQuery("Ramps","more",rampQry)
-            end
+            // SetLayer(Args.General.llayer)
+            // for i = 1 to Args.Interchange.ramps.length do
+                // rampQry = "Select * where " + Args.General.facType + " = " + String(Args.Interchange.ramps[i])
+                // n1 = SelectByQuery("Ramps","more",rampQry)
+            // end
             
-            // Select problem nodes near those ramp links
+            // Select potential problem nodes near ramp links
+            // Add those to the problem node set
             SetLayer(Args.General.nlayer)
             Opts = null
             //Opts.Inclusion = "Intersecting"
             Opts.Display = "True"
             Opts.[Source And] = potentialSet
-            numNearby = SelectByVicinity(problemSet,"Several",Args.General.llayer + "|Ramps",.1,Opts)
+            // numNearby = SelectByVicinity(problemSet,"Several",Args.General.llayer + "|Ramps",.1,Opts)
+            numNearby = SelectByVicinity(problemSet,"More",Args.General.llayer + "|" + rampSet,.1,Opts)
             
             
             
@@ -1861,6 +1890,307 @@ EndDbox
 
 
 
+/*
+This macro uses more-advanced spatial analysis
+to tag links in one layer with the IDs of links
+in a second layer.
+
+Target Hwy DBD: will have a field added with the IDs from the Source Hwy DBD
+*/
+
+dBox "LinkJoin" center,center,170,35 toolbox NoKeyboard Title:"Adv Spatial Join (link)"
+    init do
+        shared Args
+        
+        if Args.General.debug = 1 then do
+            ShowItem("Debug")
+        end
+        
+        // Default the target dbd to the general dbd        
+        if Args.LinkJoin.targetHwy = null then Args.LinkJoin.targetHwy = Args.General.hwyDBD
+        Args.LinkJoin.targetHwyArray = {"Choose Highway DBD",Args.LinkJoin.targetHwy}
+        Args.LinkJoin.PosVars.tHwy = 2
+        Args.LinkJoin.sourceHwyArray = {"Choose Highway DBD",Args.LinkJoin.sourceHwy}
+        if Args.LinkJoin.sourceHwy <> null then Args.LinkJoin.PosVars.sHwy = 2
+        
+        a_info = GetDBInfo(Args.LinkJoin.targetHwy)
+        Args.LinkJoin.hwyScope = a_info[1]        
+        {Args.LinkJoin.nlayer,Args.LinkJoin.llayer} = GetDBLayers(Args.LinkJoin.targetHwy)
+        // Update the Link Field List
+        // tempLink = AddLayerToWorkspace(Args.LinkJoin.llayer,Args.LinkJoin.targetHwy,Args.LinkJoin.llayer,)
+        // fieldList = GetFields(tempLink,"All")
+        // Args.General.linkFieldList = fieldList[1] // updating the general list so that all dBoxs benefit
+        // DropLayerFromWorkspace(tempLink)
+        
+        // Initialize the delay units list
+        // Args.LinkJoin.unitList = {"mins","hours"}
+        
+        // Setup the array that will control which dbox items are updated
+        // when the dBox is opened or settings are loaded.
+        Args.GUI.LinkJoin.ItemList = 
+                {
+                {"popTHwy",,Args.LinkJoin.targetHwy,Args.LinkJoin.targetHwyArray,"tHwy"},
+                {"popSHwy",,Args.LinkJoin.sourceHwy,Args.LinkJoin.sourceHwyArray,"sHwy"}
+                }
+        
+        if Args.LinkJoin.length <> null then RunMacro("Set LinkJoin Dbox Items")
+        
+    enditem
+    
+    Text 12,2,100 Variable: "The 'Target' layer will have a field added with the IDs from the 'Source' layer" 
+    
+	// Target Highway DBD drop down menu
+	Popdown Menu "popTHwy" same, after, 100, 7 prompt: "Target Highway" list: Args.LinkJoin.targetHwyArray variable:Args.LinkJoin.PosVars.tHwy do
+        on escape goto quit
+        if Args.LinkJoin.PosVars.tHwy = 1 then do
+            Args.LinkJoin.targetHwy = ChooseFile({{"Geographic File (*.dbd)", "*.dbd"}}, "Choose Highway DBD",{{"Initial Directory",Args.General.initialDir}})
+            Args.LinkJoin.targetHwyArray = {"Choose Highway DBD",Args.LinkJoin.targetHwy}
+            Args.LinkJoin.PosVars.tHwy = 2  
+            
+            {Args.LinkJoin.nlayer,Args.LinkJoin.llayer} = GetDBLayers(Args.LinkJoin.targetHwy)
+            a_info = GetDBInfo(Args.LinkJoin.targetHwy)
+            Args.LinkJoin.hwyScope = a_info[1]
+            
+            // tempLink = AddLayerToWorkspace(Args.LinkJoin.llayer,Args.LinkJoin.targetHwy,Args.LinkJoin.llayer,)
+            // fieldList = GetFields(tempLink,"All")
+            // Args.General.linkFieldList = fieldList[1]
+            // DropLayerFromWorkspace(tempLink)
+        
+        end
+        quit:
+        on escape default
+	enditem     
+       
+    // Source Highway DBD drop down menu
+	Popdown Menu "popSHwy" same, after, 100, 7 prompt: "Source Highway" list: Args.LinkJoin.sourceHwyArray variable:Args.LinkJoin.PosVars.sHwy do
+        on escape goto quit
+        if Args.LinkJoin.PosVars.sHwy = 1 then do
+            Args.LinkJoin.sourceHwy = ChooseFile({{"Geographic File (*.dbd)", "*.dbd"}}, "Choose Highway DBD",{{"Initial Directory",Args.General.initialDir}})
+            Args.LinkJoin.sourceHwyArray = {"Choose Highway DBD",Args.LinkJoin.sourceHwy}
+            Args.LinkJoin.PosVars.sHwy = 2        
+        end
+        quit:
+        on escape default
+	enditem 
+    
+    // Actual calculation
+    button 20, 16, 23 Prompt:"Join" do
+        
+        // Create map with link and node layers from the target and source
+        // Don't use G30 macro.  Need better control of layer names.
+        // map = RunMacro("G30 new map", Args.LinkJoin.targetHwy)
+        opts = null
+        opts.Scope = Args.LinkJoin.hwyScope
+        map = CreateMap("map", opts)
+        {snLyr,slLyr} = GetDBLayers(Args.LinkJoin.sourceHwy)
+        slLyr = AddLayer(map, "source link", Args.LinkJoin.sourceHwy, slLyr)
+        snLyr = AddLayer(map, "source node", Args.LinkJoin.sourceHwy, snLyr)
+        tlLyr = AddLayer(map, "target link", Args.LinkJoin.targetHwy, Args.LinkJoin.llayer)
+        tnLyr = AddLayer(map, "target node", Args.LinkJoin.targetHwy, Args.LinkJoin.nlayer)
+        
+        // Set selection inclusion to intersecting for
+        // spatial selections
+        SetSelectInclusion("Intersecting")
+        
+        // Add field to target layer
+        a_fields = {{"SourceLinkID", "Integer", 8, , },
+                    {"PctMatch", "Real", 8, 2, }}
+        RunMacro("TCB Add View Fields",{tlLyr,a_fields})    
+        
+        // Create selection sets that mark the confidence level of the joins
+        SetLayer(tlLyr)
+        perfectSet  = RunMacro("G30 create set","Perfect Match (100%)")
+        aperfectSet = RunMacro("G30 create set","Almost Perfect Match (100%)")
+        highSet     = RunMacro("G30 create set","High Confidence Match (>70%)")
+        medSet      = RunMacro("G30 create set","Medium Confidence Match (>50%)")
+        lowSet      = RunMacro("G30 create set","Low Confidence Match (>33%)")
+        noSet       = RunMacro("G30 create set","No Match (<33%)")
+        
+        // Collect the vector of source link IDs for tracking
+        // Each source ID can only be used once
+        // v_sID = GetDataVector(slLyr + "|", "ID", )
+        
+        // Progress Bar
+        CreateProgressBar("Joining", "True")
+        v_tID = GetDataVector(tlLyr + "|", "ID", )
+        total = v_tID.length
+        
+        // Loop over the target links and begin joining
+        rh = GetFirstRecord(tlLyr + "|", )
+        count = 0
+        while rh <> null do
+            linkID = RH2ID(rh)
+            
+            count = count + 1
+            cancel = UpdateProgressBar("Joining link " + String(count), round(count / total * 100, 0))
+            if cancel then goto quit
+            
+            // Create an coordinate array of the current link
+            SetLayer(tlLyr)
+            a_coords = GetLine(linkID)
+            
+            // **** Step 1: Check for Perfect Match ****
+            
+            // Do an initial screen to see if there
+            // is a perfect match.  It must have identical:
+            // ID, number of shape points, shape point coords
+            perfect = 1
+            SetLayer(slLyr)
+            coord = a_coords[1]
+            n = SelectByQuery("nearest", "Several", "Select * where ID = " + String(linkID))
+            if n > 0 then do
+                {sID} = GetSetIDs("nearest")
+                a_scoords = GetLine(sID)
+                // a perfect match must have the same number of shape points
+                if a_coords.length <> a_scoords.length then perfect = 0
+                else do
+                    for c = 1 to a_coords.length do
+                        t = a_coords[c]
+                        s = a_scoords[c]
+                        
+                        // each shape point must have identical lats/lons
+                        if t.lon <> s.lon then perfect = 0
+                        if t.lat <> s.lat then perfect = 0
+                    end
+                end
+            // if n = 0
+            end else do
+                perfect = 0
+            end
+            
+            if perfect = 1 then do
+                SetLayer(tlLyr)
+                SelectRecord(perfectSet)
+                SetRecordValues(tlLyr, rh, {{"SourceLinkID", sID}, {"PctMatch", 100}})
+            end else do
+                
+                // **** Step 2: Collect the link IDs found around each shape point ****
+                
+                // SetLayer(snLyr)
+                SetLayer(slLyr)
+                a_sID = null
+                for c = 1 to a_coords.length do
+                    coord = a_coords[c]
+                    
+                    // SelectByCoord throws a notfound error if it doesn't
+                    // find anything in the given search radius.  This stops
+                    // it from crashing the program.
+                    on NotFound do
+                        n = 0
+                        goto jump
+                    end
+                    // n = SelectByCoord("nearest", "Several", coord, 200/5280, )
+                    // n = SelectByVicinity("nearest", "Several", tnLyr + "|", 200/5280, )
+                    circle = Circle(coord, 200/5280)
+                    n = SelectByCircle("nearest", "Several", circle, )
+                    jump:
+                    if n > 0 then do
+                        // {snID} = GetSetIDs("nearest")
+                        // a_sID = a_sID + GetNodeLinks(snID)
+                        a_sID = a_sID + GetSetIDs("nearest")
+                    end
+                end
+                
+                if a_sID.length > 0 then do
+                    
+                    // **** Step 3: Determine correct link and confidence ****
+                    
+                    // Create a unique list of IDs found
+                    opts = null
+                    opts.Unique = "True"
+                    a_uniqsID = SortArray(a_sID, opts)
+                    
+                    // Create a count vector for each unique source link ID
+                    opts = null
+                    opts.Constant = 0
+                    v_count = Vector(a_uniqsID.length, "Long", opts)
+                    
+                    // Loop over each unique source link ID found near
+                    // the target link's multiple coordinates
+                    for i = 1 to a_uniqsID.length do
+                        sID = a_uniqsID[i]
+                        
+                        // Increment the count variable each time that unique
+                        // source link ID is found in the non-unique array
+                        for j = 1 to a_sID.length do
+                            if a_sID[j] = sID then v_count[i] = v_count[i] + 1
+                        end
+                    end
+                     
+                    // Determine the ID found most often
+                    maxCount = VectorStatistic(v_count, "Max", )
+                    pos = ArrayPosition(V2A(v_count), {maxCount}, )
+                    sID = a_uniqsID[pos]
+                    
+                    // Determine the percent of shape points it was found near
+                    pct = maxCount / a_coords.length * 100
+                    
+                    // for debugging
+                    // if linkID = 45796 then do
+                        // ShowMessage(1)
+                    // end
+                    
+                    // Set the ID and selection set
+                    SetLayer(tlLyr)
+                    
+                    if pct = 100 then do
+                        SelectRecord(aperfectSet)
+                        SetRecordValues(tlLyr, rh, {{"SourceLinkID", sID}, {"PctMatch", pct}})
+                    end else if pct >= 70 then do
+                        SelectRecord(highSet)
+                        SetRecordValues(tlLyr, rh, {{"SourceLinkID", sID}, {"PctMatch", pct}})
+                    end else if pct >= 50 then do
+                        SelectRecord(medSet)
+                        SetRecordValues(tlLyr, rh, {{"SourceLinkID", sID}, {"PctMatch", pct}})
+                    end else if pct >= 33 then do
+                        SelectRecord(lowSet)
+                        SetRecordValues(tlLyr, rh, {{"SourceLinkID", sID}, {"PctMatch", pct}})
+                    end else do
+                        SelectRecord(noSet)
+                        SetRecordValues(tlLyr, rh, {{"PctMatch", pct}})
+                    end
+                end 
+                if not(a_sID.length > 0) then do
+                    SelectRecord(noSet)
+                end
+            end
+            
+            rh = GetNextRecord(tlLyr + "|", rh, )
+        end
+        
+        quit:
+        on NotFound default
+        DestroyProgressBar()
+    enditem
+    
+    
+    
+    
+    
+    
+    
+    // Debug Button
+	
+    button "Debug" 5, 16, 12 Hidden do
+        ShowMessage(1)
+    enditem
+    
+    // Save Settings Button
+    button "Save Settings" same, after, 12 do
+        RunMacro("Save Settings")
+    enditem
+
+    // Load Settings Button
+    button "Load Settings" same, after, 12 do
+        RunMacro("Load Settings")
+        RunMacro("Set LinkJoin Dbox Items")
+    enditem    
+    
+	// Quit Button
+	button "Quit" 55, 16, 12 do
+        Return(0)
+	enditem
+EndDbox
 
 
 
@@ -1992,6 +2322,28 @@ Macro "Set Benefits Dbox Items"
     end
 EndMacro
 
+// Fill in the LinkJoin dbox items with any Args that exist
+Macro "Set LinkJoin Dbox Items"
+    shared Args
+    // required format for Args.GUI.LinkJoin.ItemList
+    //{ItemName,PromptVar,ValueVar,ListVar,PositionVar}
+
+    for i = 1 to Args.GUI.LinkJoin.ItemList.length do
+        itemName  = Args.GUI.LinkJoin.ItemList[i][1]
+        promptVar = Args.GUI.LinkJoin.ItemList[i][2]
+        value     = Args.GUI.LinkJoin.ItemList[i][3]
+        list      = Args.GUI.LinkJoin.ItemList[i][4]
+        pos       = Args.GUI.LinkJoin.ItemList[i][5]
+        // Before doing anything, the value variable must not be null
+        if value <> null then do
+            // if the list variable does not exist, then simply set the position var to 1
+            if list = null and pos <> null then Args.LinkJoin.PosVars.(pos) = 1
+            // if the list variable does exist, then set the position variable to match value
+            if list <> null then Args.LinkJoin.PosVars.(pos) = ArrayPosition(list,{value},)
+        end
+    end
+EndMacro
+
 // Runs when a highwayDBD is selected in the settings dbox (or when settings are loaded)
 Macro "HwyDropDownEnableItems"
         EnableItem("View Highway DBD")
@@ -2027,5 +2379,4 @@ Macro "getBAField" (abField)
         end
     end
 EndMacro
-
 
