@@ -2072,23 +2072,18 @@ dBox "LinkJoin" center,center,170,35 toolbox NoKeyboard Title:"Adv Spatial Join 
                 for c = 1 to a_coords.length do
                     coord = a_coords[c]
                     
-                    // SelectByCoord throws a notfound error if it doesn't
-                    // find anything in the given search radius.  This stops
-                    // it from crashing the program.
-                    on NotFound do
-                        n = 0
-                        goto jump
+                    // Use a loop to gradually increase the search radius
+                    // until links are found.  On interstates, the distance
+                    // between some free links and HOV links is <10 ft.
+                    for dist = 5 to 200 step 5 do
+                        circle = Circle(coord, dist/5280)
+                        n = SelectByCircle("nearest", "Several", circle, )
+                        if n > 0 then do
+                            dist = 201
+                            a_sID = a_sID + GetSetIDs("nearest")
+                        end
                     end
-                    // n = SelectByCoord("nearest", "Several", coord, 200/5280, )
-                    // n = SelectByVicinity("nearest", "Several", tnLyr + "|", 200/5280, )
-                    circle = Circle(coord, 200/5280)
-                    n = SelectByCircle("nearest", "Several", circle, )
-                    jump:
-                    if n > 0 then do
-                        // {snID} = GetSetIDs("nearest")
-                        // a_sID = a_sID + GetNodeLinks(snID)
-                        a_sID = a_sID + GetSetIDs("nearest")
-                    end
+                    
                 end
                 
                 if a_sID.length > 0 then do
@@ -2159,7 +2154,6 @@ dBox "LinkJoin" center,center,170,35 toolbox NoKeyboard Title:"Adv Spatial Join 
         end
         
         quit:
-        on NotFound default
         DestroyProgressBar()
     enditem
     
