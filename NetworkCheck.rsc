@@ -569,23 +569,30 @@ SplitLinks()
         nonCentroidSet = "non-centroid nodes"
         numNonCentr = SelectByQuery(nonCentroidSet,"Several",nonCentroidQuery)
         
+        // Check to see if any count fields have been selected to preserve
+        if Args.General.countFields[1] <> null then saveCounts = "True"
+        
         // Create a point file to keep track of count locations and add to map
         // (Delete it if it already exists from a previous, incomplete run)
         Args.Simplify.countDBD = Args.General.initialDir + "countLayer.dbd"
         if GetDBInfo(Args.Simplify.countDBD) <> null then DeleteDatabase(Args.Simplify.countDBD)
         Args.Simplify.cLayer = "Counts"
-        CreateDatabase(Args.Simplify.countDBD, "point", {{"Layer name",Args.Simplify.cLayer}})
-        Args.Simplify.cLayer = AddLayer(map,Args.Simplify.cLayer,Args.Simplify.countDBD,Args.Simplify.cLayer,)
-        RunMacro("G30 new layer default settings", Args.Simplify.cLayer)
-        
-        // Add fields
-        for i = 1 to Args.General.countFields.length do
-            type = GetFieldType(Args.General.llayer + "." + Args.General.countFields[i])
-            if type = "Real" then decimal = 2 else decimal = 0
-            strct = strct + {{Args.General.countFields[i], type, 12, decimal, "False", , , , , , , null}}
+        if saveCounts then do
+            CreateDatabase(Args.Simplify.countDBD, "point", {{"Layer name",Args.Simplify.cLayer}})
+            Args.Simplify.cLayer = AddLayer(map,Args.Simplify.cLayer,Args.Simplify.countDBD,Args.Simplify.cLayer,)
+            RunMacro("G30 new layer default settings", Args.Simplify.cLayer)
         end
-        // Modify the table
-        ModifyTable(Args.Simplify.cLayer, strct)
+        
+        // Add fields to count layer
+        if saveCounts then do
+            for i = 1 to Args.General.countFields.length do
+                type = GetFieldType(Args.General.llayer + "." + Args.General.countFields[i])
+                if type = "Real" then decimal = 2 else decimal = 0
+                strct = strct + {{Args.General.countFields[i], type, 12, decimal, "False", , , , , , , null}}
+            end
+            // Modify the table
+            ModifyTable(Args.Simplify.cLayer, strct)
+        end
         
         // Create a progress bar to keep track of progress
         numNodeRecords = GetRecordCount(Args.General.nlayer,nonCentroidSet)
@@ -652,13 +659,15 @@ SplitLinks()
                         
                         // Check if the link has any count data to preserve.  If so,
                         // set the count link value to the link ID
-                        countLink = 0
-                        for j = 1 to Args.General.countFields.length do
-                            value = RunMacro("GetLinkValue", a_links[i],Args.General.countFields[i])
-                            if value <> null then do
-                                countLink = i
-                                a_countVals = GetRecordValues(Args.General.llayer, linkRH,Args.General.countFields)
-                                j = Args.General.countFields.length + 1
+                        if saveCounts then do
+                            countLink = 0
+                            for j = 1 to Args.General.countFields.length do
+                                value = RunMacro("GetLinkValue", a_links[i],Args.General.countFields[i])
+                                if value <> null then do
+                                    countLink = i
+                                    a_countVals = GetRecordValues(Args.General.llayer, linkRH,Args.General.countFields)
+                                    j = Args.General.countFields.length + 1
+                                end
                             end
                         end
                         
@@ -677,31 +686,34 @@ SplitLinks()
                         if countLink <> 0 then a_hasCount = a_hasCount + {1} else a_hasCount = a_hasCount + {0}
                     end
                     
-                    // After checking both links, create a count node if: 
-                        // the node's links will be joined (node is a member of the autoSet)
-                        // count data is present on the short link only
-                        // (I preserve the longer-link's attributes by listing it first in JoinLinks())
+                    // Determine which is the shorter/longer link
                     SetLayer(Args.General.nlayer)
                     minLength = VectorStatistic(A2V(a_length),"Min",)
                     minPosition = ArrayPosition(a_length,{minLength},)
                     maxLength = VectorStatistic(A2V(a_length),"Max",)
                     maxPosition = ArrayPosition(a_length,{maxLength},)
                     
-                    if a_hasCount[minPosition] = 1 and a_hasCount[maxPosition] = 0 and IsMember(autoSet,nodeRH) then do
-                    // if countLink <> 0 and IsMember(autoSet,nodeRH) then do
-                        coord = GetPoint(nodeID)
-                        SetLayer(Args.Simplify.clayer)
-                        new_id = AddPoint(coord, nodeID) //use the same ID as the merged node
-                        
-                        // Set the record values
-                        countRH = LocateRecord(Args.Simplify.clayer + "|","ID",{new_id},)
-                        a_temp = null
-                        for j = 1 to Args.General.countFields.length do
-                            // if j = 1 then a_temp = {{Args.General.countFields[j],a_countVals[j][2]}}
-                            // else a_temp = a_temp + {{Args.General.countFields[j],a_countVals[j][2]}}
-                            a_temp = a_temp + {{Args.General.countFields[j],a_countVals[j][2]}}
+                    // After checking both links, create a count node if: 
+                        // the node's links will be joined (node is a member of the autoSet)
+                        // count data is present on the short link only
+                        // (I preserve the longer-link's attributes by listing it first in JoinLinks())
+                    if saveCounts then do
+                        if a_hasCount[minPosition] = 1 and a_hasCount[maxPosition] = 0 and IsMember(autoSet,nodeRH) then do
+                        // if countLink <> 0 and IsMember(autoSet,nodeRH) then do
+                            coord = GetPoint(nodeID)
+                            SetLayer(Args.Simplify.clayer)
+                            new_id = AddPoint(coord, nodeID) //use the same ID as the merged node
+                            
+                            // Set the record values
+                            countRH = LocateRecord(Args.Simplify.clayer + "|","ID",{new_id},)
+                            a_temp = null
+                            for j = 1 to Args.General.countFields.length do
+                                // if j = 1 then a_temp = {{Args.General.countFields[j],a_countVals[j][2]}}
+                                // else a_temp = a_temp + {{Args.General.countFields[j],a_countVals[j][2]}}
+                                a_temp = a_temp + {{Args.General.countFields[j],a_countVals[j][2]}}
+                            end
+                            SetRecordValues(Args.Simplify.clayer, countRH,a_temp)
                         end
-                        SetRecordValues(Args.Simplify.clayer, countRH,a_temp)
                     end
                 end
             end
@@ -723,7 +735,7 @@ SplitLinks()
                     // make sure the longer link is the first argument.
                     // In addition, the topology of the new/combined link is
                     // also determined by order of argument.  If the topology changes,
-                    // one-way links will reverse direction.  Catch and correct.
+                    // one-way links will reverse direction.  Catch and correct the Dir field.
                     bigLink = a_links[maxPosition]
                     smallLink = a_links[minPosition]
                     
@@ -803,7 +815,7 @@ SplitLinks()
         end
         
         // If the links were joined, then tag the new layer with the count points created
-        if Args.Simplify.runMode = "full" then do
+        if Args.Simplify.runMode = "full" and saveCounts then do
             SetLayer(Args.General.llayer)
             toTagSet = RunMacro("G30 create set","Links to Tag")
             opts = null
