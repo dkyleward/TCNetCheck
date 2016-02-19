@@ -98,28 +98,28 @@ dBox "Benefits" center,center,170,35 toolbox NoKeyboard Title:"Benefit Calculati
     Text same,after Variable:"(BA fields are found automatically)"
     Popdown Menu "popFlow" same, after, 20, 8 prompt: "AB Daily Flow" list: Args.General.linkFieldList variable: Args.Benefits.PosVars.abFlow do
         Args.Benefits.abFlow = Args.General.linkFieldList[Args.Benefits.PosVars.abFlow]
-        temp = RunMacro("getBAField",Args.Benefits.abFlow)
+        temp = RunMacro("getBAField",Args.Benefits.abFlow, Args.General.linkFieldList)
         Args.Benefits.baFlow = temp[1]
 	enditem 
     
     // Choose AB Cap Field
     Popdown Menu "popCap" same, after, 20, 8 prompt: "AB Daily Capacity" list: Args.General.linkFieldList variable: Args.Benefits.PosVars.abCap do
         Args.Benefits.abCap = Args.General.linkFieldList[Args.Benefits.PosVars.abCap]
-        temp = RunMacro("getBAField",Args.Benefits.abCap)
+        temp = RunMacro("getBAField",Args.Benefits.abCap, Args.General.linkFieldList)
         Args.Benefits.baCap = temp[1]
 	enditem
     
     // Choose FF Speed
     Popdown Menu "popFFSpeed" same, after, 20, 8 prompt: "AB FF Speed" list: Args.General.linkFieldList variable: Args.Benefits.PosVars.abffSpeed do
         Args.Benefits.abffSpeed = Args.General.linkFieldList[Args.Benefits.PosVars.abffSpeed]
-        temp = RunMacro("getBAField",Args.Benefits.abffSpeed)
+        temp = RunMacro("getBAField",Args.Benefits.abffSpeed, Args.General.linkFieldList)
         Args.Benefits.baffSpeed = temp[1]        
 	enditem
     
     // Choose AB Delay Field
     Popdown Menu "popDelay" same, after, 20, 8 prompt: "AB Daily Delay" list: Args.General.linkFieldList variable: Args.Benefits.PosVars.abDelay do
         Args.Benefits.abDelay = Args.General.linkFieldList[Args.Benefits.PosVars.abDelay]
-        temp = RunMacro("getBAField",Args.Benefits.abDelay)
+        temp = RunMacro("getBAField",Args.Benefits.abDelay, Args.General.linkFieldList)
         Args.Benefits.baDelay = temp[1]
 	enditem     
 

@@ -163,9 +163,9 @@ dBox "Tool Setup" center,center,170,35 toolbox NoKeyboard Title:"Tool Setup"
         Args.General.abLanes = Args.General.linkFieldList[Args.General.PosVars.int5]
         
         // Set the BA field if one is automatically found
-        {field,int} = RunMacro("getBAField",Args.General.abLanes)
+        {field,int} = RunMacro("getBAField",Args.General.abLanes, Args.General.linkFieldList)
         Args.General.baLanes = field
-        int6 = int
+        Args.General.PosVars.int6 = int
 	enditem 
     
     // Choose Link BA Lanes Field

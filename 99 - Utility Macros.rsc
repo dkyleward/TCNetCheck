@@ -36,10 +36,10 @@ EndMacro
 // Extending this macro to accept optional arguments
 Macro "Create Highway Map" (hwyDBD)
     // If the hwyDBD argument is not passed, then create a map of the
-    // highway layer references in Args.General
+    // highway layer referenced in Args.General
     if hwyDBD = null then do
         shared Args
-        map = CreateMap("Network Simplification",{{"Scope",Args.General.hwyScope}})
+        map = CreateMap("Highway Map",{{"Scope",Args.General.hwyScope}})
         Args.General.llayer = AddLayer(map,Args.General.llayer,Args.General.hwyDBD,Args.General.llayer,)
         Args.General.nlayer = AddLayer(map,Args.General.nlayer,Args.General.hwyDBD,Args.General.nlayer,)
         RunMacro("G30 new layer default settings", Args.General.nlayer)
@@ -161,7 +161,7 @@ EndMacro
 
 // This in the setup dialog box, this macro takes the ab field
 // and searches for the ba.  Returns name and position
-Macro "getBAField" (abField)
+/* Macro "getBAField" (abField)
     shared Args
     // search for ba direction if ab field contains a unique "AB"
     firstPos = Position(abField,"AB")
@@ -172,6 +172,27 @@ Macro "getBAField" (abField)
             // Change "AB" to "BA" and test to see if that field exists
             baName = Substitute(abField,"AB","BA",)
             pos = ArrayPosition(Args.General.linkFieldList,{baName},{{"Case Sensitive",True}})            
+            if pos <> 0 then do
+                field = baName
+                int = pos
+                return({field,int})
+            end
+        end
+    end
+EndMacro */
+
+// Generalize the macro to accept a field and field list arguments
+
+Macro "getBAField" (abField, fieldList)
+    // search for ba direction if ab field contains a unique "AB"
+    firstPos = Position(abField,"AB")
+    // if the field contains "AB"
+    if firstPos <> 0 then do
+        // if the field contains only one "AB"
+        if PositionFrom(firstPos + 2,abField,"AB") = 0 then do
+            // Change "AB" to "BA" and test to see if that field exists
+            baName = Substitute(abField,"AB","BA",)
+            pos = ArrayPosition(fieldList,{baName},{{"Case Sensitive",True}})            
             if pos <> 0 then do
                 field = baName
                 int = pos
