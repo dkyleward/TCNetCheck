@@ -93,7 +93,7 @@ SplitLinks()
     
         // Minimum length cutoff for automatic joining
         // Can make this a user input
-        cutOff = .25
+        cutOff = .15
         
         // Create Map
         map = RunMacro("Create Highway Map")
