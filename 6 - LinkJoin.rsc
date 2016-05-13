@@ -286,7 +286,7 @@ dBox "LinkJoin" center,center,170,35 toolbox NoKeyboard Title:"Adv Spatial Join 
             SetRecordValues(tlLyr, rh, {{"SourceLinkID", sID}, {"PctMatch", pct}})
           end else do
             SelectRecord(noSet)
-            SetRecordValues(tlLyr, rh, {{"PctMatch", pct}})
+            SetRecordValues(tlLyr, rh, {{"SourceLinkID", sID}, {"PctMatch", pct}})
           end
         end
         if not(a_sID.length > 0) then do
@@ -294,6 +294,7 @@ dBox "LinkJoin" center,center,170,35 toolbox NoKeyboard Title:"Adv Spatial Join 
         end
       end
 
+      SetLayer(tlLyr)
       if GetSetCount("Selection") > 0 then
         rh = GetNextRecord(tlLyr + "|Selection", rh, )
       else rh = GetNextRecord(tlLyr + "|", rh, )
