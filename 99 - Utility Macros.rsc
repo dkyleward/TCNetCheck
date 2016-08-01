@@ -11,7 +11,7 @@ Macro "Save Settings"
     Opts.[Initial Directory] = Args.General.initialDir
     settingsFile = ChooseFileName({{"Array (*.arr)", "*.arr"}},"Save Settings As",Opts)
     SaveArray(Args,settingsFile)
-    quit: 
+    quit:
 EndMacro
 
 
@@ -24,9 +24,9 @@ Macro "Load Settings"
     Opts.[Initial Directory] = Args.General.initialDir
     settingsFile = ChooseFile({{"Array (*.arr)", "*.arr"}},"Load Settings From",Opts)
     Args = LoadArray(settingsFile)
-    
+
     // Update Setup GUI items
-    
+
     quit:
 EndMacro
 
@@ -46,7 +46,7 @@ Macro "Create Highway Map" (hwyDBD)
         RunMacro("G30 new layer default settings", Args.General.llayer)
         return(map)
     end
-    
+
     // If hwyDBD is passed, then create the map on it.
     if hwyDBD <> null then do
         scope = GetDBInfo(hwyDBD)
@@ -59,7 +59,7 @@ Macro "Create Highway Map" (hwyDBD)
         RunMacro("G30 new layer default settings", llayer)
         return({map,nlayer,llayer})
     end
-    
+
 EndMacro
 
 
@@ -74,7 +74,7 @@ Macro "GetLinkValue" (linkID,fieldName)
     return(vals[fieldPos][2])
 EndMacro
 
- 
+
 // Fill in the Setup dbox items with any Args that exist
 Macro "Set Setup Dbox Items"
     shared Args
@@ -87,7 +87,7 @@ Macro "Set Setup Dbox Items"
         value     = Args.GUI.Setup.ItemList[i][3]
         list      = Args.GUI.Setup.ItemList[i][4]
         pos       = Args.GUI.Setup.ItemList[i][5]
-        
+
         // Before doing anything, the value variable must not be null
         if value <> null then do
             // if it's the highway dbd item, enable the related items
@@ -171,7 +171,7 @@ EndMacro
         if PositionFrom(firstPos + 2,abField,"AB") = 0 then do
             // Change "AB" to "BA" and test to see if that field exists
             baName = Substitute(abField,"AB","BA",)
-            pos = ArrayPosition(Args.General.linkFieldList,{baName},{{"Case Sensitive",True}})            
+            pos = ArrayPosition(Args.General.linkFieldList,{baName},{{"Case Sensitive",True}})
             if pos <> 0 then do
                 field = baName
                 int = pos
@@ -192,7 +192,7 @@ Macro "getBAField" (abField, fieldList)
         if PositionFrom(firstPos + 2,abField,"AB") = 0 then do
             // Change "AB" to "BA" and test to see if that field exists
             baName = Substitute(abField,"AB","BA",)
-            pos = ArrayPosition(fieldList,{baName},{{"Case Sensitive",True}})            
+            pos = ArrayPosition(fieldList,{baName},{{"Case Sensitive",True}})
             if pos <> 0 then do
                 field = baName
                 int = pos
@@ -201,3 +201,80 @@ Macro "getBAField" (abField, fieldList)
         end
     end
 EndMacro
+
+/*
+** This is an orphan copy of this macro.  It is part of the main
+Model Utilities script first created for Hickory NC**
+
+Replacement macro for TransCADs "JoinTableToLayer()", which does not work
+properly.  We have notified Caliper, who will correct it's functionality in a
+future release of TransCAD.  For now, use this.
+
+Inputs:
+masterDbd String  Full path of master geographic file
+mID       String  Name of master field to use for join.
+slaveTbl  String  Full path of slave table.  Can be FFB or CSV.
+sID       String  Name of slave field to use for join.
+
+Output:
+Permanently appends the slave data to the master table
+
+Example application:
+Attaching an SE data table to a TAZ layer
+*/
+
+Macro "Append Columns to DBD" (masterDBD, mID, slaveTbl, sID)
+
+  // Determine slave table type
+  path = SplitPath(slaveTbl)
+  if path[4] = ".csv" then type = "CSV"
+  else if path[4] = ".bin" then type = "FFB"
+  else Throw("Can only accept FFB or CSV table types")
+
+  slave = OpenTable("slave", type, {slaveTbl, })
+
+  masterBIN = Substitute(masterDBD, ".dbd", ".bin", )
+  masterDCB = Substitute(masterDBD, ".dbd", ".dcb", )
+  master = OpenTable("master", "FFB", {masterBIN, })
+
+  jv = JoinViews("jv", master + "." + mID, slave + "." + sID, )
+  SetView(jv)
+
+  // Create temporary file name in same directory as masterBIN
+  path = SplitPath(masterBIN)
+  tempBIN = path[1] + path[2] + "temp.bin"
+  tempDCB = path[1] + path[2] + "temp.dcb"
+
+  ExportView(jv + "|", "FFB", tempBIN, , )
+  RunMacro("Close All")
+  DeleteFile(masterBIN)
+  DeleteFile(masterDCB)
+  RenameFile(tempBIN, masterBIN)
+  RenameFile(tempDCB, masterDCB)
+EndMacro
+
+/*
+This script provides a library of tools that are generally useful when
+running GISDK models.
+*/
+
+/*
+This macro clears the workspace
+*/
+Macro "Close All"
+    maps = GetMapNames()
+    if maps <> null then do
+      for i = 1 to maps.length do
+        CloseMap(maps[i])
+      end
+    end
+    RunMacro("TCB Init")
+    RunMacro("G30 File Close All")
+    mtxs = GetMatrices()
+    if mtxs <> null then do
+        handles = mtxs[1]
+        for i = 1 to handles.length do
+            handles[i] = null
+            end
+        end
+endMacro

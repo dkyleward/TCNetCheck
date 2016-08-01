@@ -171,7 +171,10 @@ dBox "Main" center,center,125,25 toolbox NoKeyboard Title:"Network Check Tool"
     else RunDbox("Flip Link Directions")
   enditem
 
-
+  button "Load Point Data (Counts)" same, after, 23 do
+    if Args.General.hwyDBD = null then ShowMessage("You must select a roadway geographic file.")
+    else RunDbox("Point Data")
+  enditem
 
 
 
