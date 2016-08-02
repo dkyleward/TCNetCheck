@@ -278,3 +278,23 @@ Macro "Close All"
             end
         end
 endMacro
+
+/*
+Removes a field from a view/layer
+
+Input
+viewName  Name of view or layer (must be open)
+fieldName Name of the field to remove
+*/
+
+Macro "Drop Field" (viewName, fieldName)
+  a_str = GetTableStructure(viewName)
+  for i = 1 to a_str.length do
+    a_str[i] = a_str[i] + {a_str[i][1]}
+    if a_str[i][1] = fieldName then position = i
+  end
+  if position <> null then do
+    a_str = ExcludeArrayElements(a_str, position, 1)
+    ModifyTable(viewName, a_str)
+  end
+EndMacro

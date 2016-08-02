@@ -60,36 +60,50 @@ EndDbox
 Macro "Load Point Data"
   shared Args
 
-  // Add field for the point ID (must be integer)
+  // Create map of line and point layers
   {nlyr, llyr} = GetDBLayers(Args.General.hwyDBD)
   map = RunMacro("G30 new map", Args.General.hwyDBD)
-  SetLayer(llyr)
-  a_fields = {{"PointID", "Integer", 10,}}
-  RunMacro("TCB Add View Fields", {llyr, a_fields})
-
-  // Add point layer to map
   {plyr} = GetDBLayers(Args.LoadPoint.point_file)
   plyr = AddLayer(map, plyr, Args.LoadPoint.point_file, plyr)
 
-  // Create set of non-CC links (to avoid tagging point data to them)
+  // Create set of non-CC links
   SetLayer(llyr)
   qry = "Select * where " + Args.General.fClass + " <> '" +
-    Args.General.ccClass + "'"
+  Args.General.ccClass + "'"
   n1 = SelectByQuery("non-CCs", "Several", qry)
   if n1 = 0 then Throw("No non-CC links found to tag")
 
-  // Tag Layer
+  // Create set of points within 50' of the non-CC links
+  // This prevents loading point data on non-modeled links.
+  SetLayer(plyr)
+  dist = 50 // feet
+  n2 = SelectByVicinity("target points", "Several", llyr + "|non-CCs", dist/5280)
+  if n2 = 0 then Throw("No points found within " + dist + "ft of non-CC links")
+
+  // Add field to point data layer
+  a_fields = {{"LinkID", "Integer", 10,}}
+  RunMacro("TCB Add View Fields", {plyr, a_fields})
+
+  // Tag point selection with link IDs
   TagLayer(
-    "Value", llyr + "|non-CCs", "PointID", plyr,
-    plyr + "." + Args.LoadPoint.tag_field
+    "Value",
+    plyr + "|target points", "LinkID",
+    llyr, llyr + ".ID"
   )
   DropLayer(map, plyr)
   RunMacro("Close All")
 
   // Permanently join the point data to the link layer
   masterDBD = Args.General.hwyDBD
-  mID = "PointID"
+  mID = "ID"
   slaveTbl = Substitute(Args.LoadPoint.point_file, ".dbd", ".bin", 1)
-  sID = Args.LoadPoint.tag_field
+  sID = "LinkID"
   RunMacro("Append Columns to DBD", masterDBD, mID, slaveTbl, sID)
+
+  // Drop some fields
+  llyr = AddLayerToWorkspace(llyr, Args.General.hwyDBD, llyr)
+  RunMacro("Drop Field", llyr, "ID:1")
+  RunMacro("Drop Field", llyr, "LinkID")
+
+  RunMacro("Close All")
 EndMacro
