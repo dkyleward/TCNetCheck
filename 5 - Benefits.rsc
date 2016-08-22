@@ -852,7 +852,7 @@ Macro "Prepare Dist Est File"
 
   // Open a file to write results to and add header row
   file = OpenFile(scen_dir + "/dist_estimation.csv", "w")
-  WriteLine(file, "scenario,id,distance,vmt,abs_vmt_diff,abs_pct_vmt_diff")
+  WriteLine(file, "scenario,id,distance,vmt,abs_vmt_diff")
 
   // Loop over each scenario
   for s = 1 to a_scens.length do
@@ -885,13 +885,12 @@ Macro "Prepare Dist Est File"
 
     // Calculate absolute change and absolute percent change in vmt
     v_abs_diff = abs(v_vmt - v_nb_vmt)
-    v_abs_pct_diff = if v_vmt = 0 then 0 else v_abs_diff / v_vmt
 
     // Write each line of the vectors to a row in the csv
     for i = 1 to v_id.length do
-      line = scen + "," + String(v_id[i]) + "," + String(v_dist[i]) + "," +
-      String(v_vmt[i]) + "," +
-      String(v_abs_diff[i]) + "," + String(v_abs_pct_diff[i])
+      line = scen + "," + String(v_id[i]) + "," + String(v_dist[i]) +
+      "," + String(v_vmt[i]) +
+      "," + String(v_abs_diff[i])
       WriteLine(file, line)
     end
 
