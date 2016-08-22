@@ -798,9 +798,29 @@ Exports the project links to a project layer.
 Returns a vector describing the distance of every link in the highway layer
 from the project layer.  Also appends the information to the highway layer
 in field "dist_2_proj".
+
+map
+  String
+  name of open map
+
+llyr
+  String
+  Name of highway link layer
+
+set
+  String (Optional)
+  Name of selection of highway links to calc distance to the project
+
+p_id_field
+  String
+  Name of the field holding project IDs
+
+proj_id
+  String or Integer
+  Project ID to calc distance to
 */
 
-Macro "Distance to Project" (map, llyr, p_id_field, proj_id)
+Macro "Distance to Project" (map, llyr, set, p_id_field, proj_id)
 
   SetLayer(llyr)
   qry = "Select * where " + p_id_field + " = " +
@@ -820,9 +840,9 @@ Macro "Distance to Project" (map, llyr, p_id_field, proj_id)
   RunMacro("TCB Add View Fields", {llyr, a_fields})
 
   SetLayer(llyr)
-  TagLayer("Distance", llyr + "|", "dist_2_proj", p_llyr, )
+  TagLayer("Distance", llyr + "|" + set, "dist_2_proj", p_llyr, )
 
-  v_dist = GetDataVector(llyr + "|", "dist_2_proj", )
+  v_dist = GetDataVector(llyr + "|" + set, "dist_2_proj", )
 
   DropLayer(map, p_llyr)
   return(v_dist)
@@ -866,7 +886,7 @@ Macro "Prepare Dist Est File"
 
     // Call the distance to project macro to calculate distances
     p_id_field = "PROJ_ID"
-    RunMacro("Distance to Project", map, llyr, p_id_field, proj_id)
+    RunMacro("Distance to Project", map, llyr, set, p_id_field, proj_id)
 
     // Join no-build layer and collect data
     jv = JoinViews("jv", llyr + ".ID", nb_l + ".ID", )
