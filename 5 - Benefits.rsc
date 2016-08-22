@@ -791,3 +791,114 @@ dBox "Benefits" center,center,170,35 toolbox NoKeyboard Title:"Benefit Calculati
     Return(0)
 	enditem
 EndDbox
+
+/*
+This macro takes an open highway layer (in a map) and a project id.
+Exports the project links to a project layer.
+Returns a vector describing the distance of every link in the highway layer
+from the project layer.  Also appends the information to the highway layer
+in field "dist_2_proj".
+*/
+
+Macro "Distance to Project" (map, llyr, p_id_field, proj_id)
+
+  SetLayer(llyr)
+  qry = "Select * where " + p_id_field + " = " +
+    (if TypeOf(proj_id) = "string" then "'" + proj_id + "'"
+    else String(proj_id))
+  n = SelectByQuery("proj", "Several", qry)
+  if n = 0 then Throw("No project records found")
+
+  file = GetTempFileName("*.dbd")
+  opts = null
+  opts.[Layer Name] = "temp"
+  ExportGeography(llyr + "|proj", file, opts)
+  {p_nlyr, p_llyr} = GetDBLayers(file)
+  AddLayer(map, p_llyr, file, p_llyr)
+
+  a_fields = {{"dist_2_proj", "Real", 10, 2, }}
+  RunMacro("TCB Add View Fields", {llyr, a_fields})
+
+  SetLayer(llyr)
+  TagLayer("Distance", llyr + "|", "dist_2_proj", p_llyr, )
+
+  v_dist = GetDataVector(llyr + "|", "dist_2_proj", )
+
+  DropLayer(map, p_llyr)
+  return(v_dist)
+Endmacro
+
+/*
+This macro is used to prepare a csv table that can be used to estimate
+a distance profile for projects.  A no build scenario is required. Each
+comparison sceanrio must be the same as the no-build, but with one
+project added.
+*/
+
+Macro "Prepare Dist Est File"
+
+  // Prepare arrays of scenario folder names and project IDs.
+  // Each scenario (other than no-build) must have one extra project
+  // included in addition to any projects in the no-build.
+  scen_dir = "C:\\projects/HamptonRoads/Repo/scenarios"
+  no_build = "EC2040"
+  a_scens = {"SEPG_1", "SEPG_1_8L", "SEPG_2", "SEPG_3", "SEPG_4"}
+  a_proj_id = {1001, 1001, 1002, 1003, 1004}
+
+  // Add no_build highway to the workspace before looping over scenarios
+  nb_hwy = scen_dir + "/" + no_build + "/Outputs/HR_Highway.dbd"
+  {nb_n, nb_l} = GetDBLayers(nb_hwy)
+  nb_l = AddLayerToWorkspace("no build", nb_hwy, nb_l)
+
+  // Open a file to write results to and add header row
+  file = OpenFile(scen_dir + "/dist_estimation.csv", "w")
+  WriteLine(file, "scenario,id,distance,vmt,abs_vmt_diff,abs_pct_vmt_diff")
+
+  // Loop over each scenario
+  for s = 1 to a_scens.length do
+    scen = a_scens[s]
+    proj_id = a_proj_id[s]
+
+    // Open a map of the scenario output highway layer
+    hwy_file = scen_dir + "/" + scen + "/Outputs/HR_Highway.dbd"
+    {nlyr, llyr} = GetDBLayers(hwy_file)
+    map = RunMacro("G30 new map", hwy_file)
+
+    // Call the distance to project macro to calculate distances
+    p_id_field = "PROJ_ID"
+    RunMacro("Distance to Project", map, llyr, p_id_field, proj_id)
+
+    // Join no-build layer and collect data
+    jv = JoinViews("jv", llyr + ".ID", nb_l + ".ID", )
+    opts = null
+    opts.[Sort Order] = {{llyr + ".ID", "Ascending"}}
+    opts.[Missing as Zero] = "True"
+    v_id = GetDataVector(jv + "|", llyr + ".ID", opts)
+    v_length = GetDataVector(jv + "|", llyr + ".Length", opts)
+    v_dist = GetDataVector(jv + "|", llyr + ".dist_2_proj", opts)
+    v_nb_vol = GetDataVector(jv + "|", nb_l + ".TOT_FlowDAY", opts)
+    v_vol = GetDataVector(jv + "|", llyr + ".TOT_FlowDAY", opts)
+
+    // Calculate vmt
+    v_vmt = v_vol * v_length
+    v_nb_vmt = v_nb_vol * v_length
+
+    // Calculate absolute change and absolute percent change in vmt
+    v_abs_diff = abs(v_vmt - v_nb_vmt)
+    v_abs_pct_diff = if v_vmt = 0 then 0 else v_abs_diff / v_vmt
+
+    // Write each line of the vectors to a row in the csv
+    for i = 1 to v_id.length do
+      line = scen + "," + String(v_id[i]) + "," + String(v_dist[i]) + "," +
+      String(v_vmt[i]) + "," +
+      String(v_abs_diff[i]) + "," + String(v_abs_pct_diff[i])
+      WriteLine(file, line)
+    end
+
+    CloseView(jv)
+    CloseMap(map)
+  end
+
+  CloseFile(file)
+  ShowMessage("Done")
+EndMacro
