@@ -134,8 +134,11 @@ dBox "Benefits" center,center,170,35 toolbox NoKeyboard Title:"Benefit Calculati
   // Actual calculation
   button 20, 16, 23 Prompt:"Calculate Project Benefits" do
 
+    // Create the output directory
     path = SplitPath(Args.Benefits.allBuildHwy)
     Args.Benefits.outputDir = path[1] + path[2] + "\\BenefitCalculation\\"
+    if GetDirectoryInfo(Args.Benefits.outputDir + "\\*", "All") = null then
+      CreateDirectory(Args.Benefits.outputDir)
 
     // In this code "ab" and "nb" stand for "all build" and "no build"
     // Directionality (AB/BA) will be capitalized to avoid confusion
@@ -507,7 +510,7 @@ dBox "Benefits" center,center,170,35 toolbox NoKeyboard Title:"Benefit Calculati
     // Create a selection set of project links (where projs change cap)
     // Written this way because there is an upper limit on the number
     // of conditions (project IDs) that can be listed in a single query
-    projectSet = RunMacro("G30 create set","Capacity-Changing Project Links")
+    /*projectSet = RunMacro("G30 create set","Capacity-Changing Project Links")
     for i = 1 to v_projID.length do
       projID = v_projID[i]
       // Some models use strings for project IDs, others don't.  Catch both.
@@ -517,7 +520,7 @@ dBox "Benefits" center,center,170,35 toolbox NoKeyboard Title:"Benefit Calculati
       else projQuery = "Select * where " + Args.Benefits.projID + " = " +
         String(projID)
       n = SelectByQuery(projectSet,"more",projQuery)
-    end
+    end*/
 
     /*
     New Method (8/2015): Vary search radius by project length
@@ -529,12 +532,109 @@ dBox "Benefits" center,center,170,35 toolbox NoKeyboard Title:"Benefit Calculati
     e.g. "11975,10938,10999"
     */
 
-    DATA = null
+    /*DATA = null
     v_allIDs  = GetDataVector(llayer + "|","ID",)
     for i = 1 to v_allIDs.length do
         DATA.(String(v_allIDs[i])) = ""
+    end*/
+
+    /*
+    Three sets will be used within the loop
+
+    projectSet
+      Selection of links of the current project
+    linkSet
+      Selection of a single link of a project
+      (while looping over the proj links)
+    linkBufferSet
+      Selection of links within the buffer distance around the current proj link
+    */
+    projectSet = RunMacro("G30 create set","current project")
+    linkSet = RunMacro("G30 create set", "project's link")
+    linkBufferSet = RunMacro("G30 create set", "project's link's buffer")
+
+    DATA = null
+
+    // Loop over each project
+    for p = 1 to v_projID.length do
+      projID = v_projID[p]
+
+      // Select the current project
+      SetLayer(llayer)
+      qry = "Select * where " + Args.Benefits.projID + " = " +
+        (if TypeOf(projID) = "string" then "'" + projID + "'"
+        else String(projID))
+      n = SelectByQuery(projectSet, "Several", qry)
+      if n = 0 then Throw("No project records found")
+
+      // Determine buffer distance
+      v_length = GetDataVector(llayer + "|" + projectSet, "Length", )
+      proj_length = VectorStatistic(v_length, "sum", )
+      buffer = proj_length * .75
+      buffer = max(buffer, 1.5)
+      buffer = min(buffer, 10)
+
+      // Loop over each link of the current project
+      v_projLinkID = GetDataVector(llayer + "|" + projectSet, "ID",)
+      for i = 1 to v_projLinkID.length do
+        id = v_projLinkID[i]
+
+        // Determine the absolute VMT change on the project link
+        rh = LocateRecord(llayer + "|", "ID", {id}, )
+        SetRecord(llayer, rh)
+        ab_vol_change = llayer.ABVolChange
+        ba_vol_change = llayer.BAVolChange
+        length = llayer.Length
+        vmt_change = abs(ab_vol_change + ba_vol_change) * length
+
+        // Select the current link
+        qry = "Select * where ID = " + String(id)
+        SelectByQuery(linkSet, "Several", qry)
+
+        // Select all links within the buffer distance of the current project
+        // link and collect their link IDs.
+        opts = null
+        opts.Inclusion = "Intersecting"
+        SelectByVicinity(
+          linkBufferSet, "Several", llayer + "|" + linkSet, buffer, opts
+        )
+        v_bufferLinkIDs = GetDataVector(llayer + "|" + linkBufferSet, "ID",)
+
+        // Calculate distance of buffered links to current project link
+        RunMacro(
+          "Distance to Project", map, llayer,
+          linkBufferSet, "ID", id
+        )
+        v_dist2link = GetDataVector(llayer + "|" + linkBufferSet, "dist_2_proj",)
+
+        // For each link in the linkBufferSet, add all relevant info to DATA
+        for bli = 1 to v_bufferLinkIDs.length do
+          bufferLinkID = v_bufferLinkIDs[bli]
+
+          // Collect the secondary benefit data on the link
+          rh = LocateRecord(llayer + "|", "ID", {bufferLinkID}, )
+          SetRecord(llayer, rh)
+          ABSecBen = llayer.ABSecBen
+          BASecBen = llayer.BASecBen
+          SecBen = ABSecBen + BASecBen
+
+          DATA.BufferLinkID = DATA.BufferLinkID + {bufferLinkID}
+          DATA.SecondaryBenefit = DATA.SecondaryBenefit + {SecBen}
+          DATA.projID = DATA.projID + {projID}
+          DATA.linkID = DATA.linkID + {id}
+          DATA.vmt_change = DATA.vmt_change + {vmt_change}
+          DATA.buffer = DATA.buffer + {buffer}
+          DATA.dist2link = DATA.dist2link + {v_dist2link[bli]}
+          DATA.DistWeight = DATA.DistWeight + {1 - v_dist2link[bli] / buffer}
+        end
+      end
     end
 
+    // Use the tables library to vectorize and write out DATA
+    DATA = RunMacro("Vectorize Table", DATA)
+    RunMacro("Write Table", DATA, Args.Benefits.outputDir + "test.csv")
+
+Throw()
     // Loop over every project link
     v_projLinkID = GetDataVector(llayer + "|" + projectSet,"ID",)
     v_projLength = GetDataVector(llayer + "|" + projectSet,"ProjectLength",)
@@ -618,19 +718,6 @@ dBox "Benefits" center,center,170,35 toolbox NoKeyboard Title:"Benefit Calculati
       // on the link to distribute
       if abs(linkSecBen) > .001 then do
 
-        // Select all project links within a buffer area around the current link
-        // The choice between "enclosed" and "intersecting" for Inclusion is important.
-        // Both have situations where one is better than the other, but intersecting
-        // is the better choice for most situations.
-        // New Method: no longer appropriate - vicinity search has already taken place
-        // Opts = null
-        // Opts.[Source And] = projectSet
-        // Opts.Inclusion = "Intersecting"
-        // n = SelectByVicinity(nearbyProjectSet,"Several",llayer + "|" + currentLinkSet,S2I(Args.Benefits.buffer),Opts)
-
-        // Only continue if there are project links within the buffer
-        // if n > 0 then do
-        // Only continue if the link has been tagged with project link IDs
         if DATA.(String(linkID)) <> "" then do
 
           // Create a selection set of the project links that were tagged
