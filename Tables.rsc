@@ -530,3 +530,37 @@ Macro "Spread" (TABLE, key, value)
 
   return(TBL)
 EndMacro
+
+/*
+Joins two table objects.
+
+master_tbl and slave_tbl
+  Table objects
+
+m_id and s_id
+  String or array
+  The id fields from master and slave to use for join.  Use an array to
+  specify multiple fields to join by.
+
+Returns a table object.
+*/
+
+Macro "Join Tables" (master_tbl, m_id, slave_tbl, s_id)
+
+  {master_view, master_file} = RunMacro("Table to View", master_tbl)
+  {slave_view, slave_file} = RunMacro("Table to View", slave_tbl)
+
+  if TypeOf(m_id) = "string" then m_id = {m_id}
+  if TypeOf(s_id) = "string" then s_id = {s_id}
+  if m_id.length <> s_id.length then
+    Throw("Different number of fields used to join by")
+  for i = 1 to m_id.length do
+    m_id[i] = master_view + "." + m_id[i]
+    s_id[i] = slave_view + "." + s_id[i]
+  end
+
+  jv = JoinViewsMulti("jv", m_id, s_id, )
+
+  TABLE = RunMacro("Read View", jv)
+  return(TABLE)
+EndMacro
