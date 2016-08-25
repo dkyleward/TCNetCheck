@@ -575,13 +575,34 @@ Macro "Join Tables" (master_tbl, m_id, slave_tbl, s_id)
   if TypeOf(s_id) = "string" then s_id = {s_id}
   if m_id.length <> s_id.length then
     Throw("Different number of fields used to join by")
+  dim m_spec[m_id.length]
+  dim s_spec[s_id.length]
   for i = 1 to m_id.length do
-    m_id[i] = master_view + "." + m_id[i]
-    s_id[i] = slave_view + "." + s_id[i]
+    m_spec[i] = master_view + "." + m_id[i]
+    s_spec[i] = slave_view + "." + s_id[i]
   end
 
-  jv = JoinViewsMulti("jv", m_id, s_id, )
-
+  jv = JoinViewsMulti("jv", m_spec, s_spec, )
   TABLE = RunMacro("Read View", jv)
+
+  // JoinViewsMulti() will attach the view names to the m_id and s_id fields
+  // if they are the same.
+  // Remove the s_id fields, and clean the m_id fields (if needed)
+  for i = 1 to m_id.length do
+    m = m_id[i]
+    s = s_id[i]
+
+    if m = s then do
+      // Rename master field
+      current_name = "[" + master_view + "]." + m
+      TABLE = RunMacro("Rename Field", TABLE, current_name, m)
+      // Delete slave field
+      TABLE.("[" + slave_view + "]." + s) = null
+    end else do
+      // Delete slave field
+      TABLE.(s) = null
+    end
+  end
+
   return(TABLE)
 EndMacro
