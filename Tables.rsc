@@ -27,7 +27,6 @@ Macro "test"
   ShowMessage("Done with test")
 EndMacro
 
-
 /*
 Create Table
 Take field names and vectors and create a table in memory
@@ -310,15 +309,29 @@ for all columns in the table that are not listed as grouping columns.
 
 TABLE: A table object
 a_groupFields: Array of column names to group by
-a_stats: Array of stats to calculate.
-         See SelfAggregate() help for list of stats.  For example:
-         {"Sum", "Mean"} will return the sum and mean of each field.
+agg:
+  Options array listing field and aggregation info
+  e.g. agg.weight = {"sum", "avg"}
+  This will sum and average the weight field
+  The possible aggregations are:
+    first, sum, high, low, avg, stddev
 
 Returns
 A table object of the summarized input table object
+In the example above, the aggregated fields would be
+  sum_weight and avg_weight
 */
 
-Macro "Summarize" (TABLE, a_groupFields, a_stats)
+Macro "Summarize" (TABLE, a_groupFields, agg)
+
+  // Remove fields from TABLE that aren't listed for summary
+  for i = 1 to a_groupFields.length do
+    a_selected = a_selected + {a_groupFields[i]}
+  end
+  for i = 1 to agg.length do
+    a_selected = a_selected + {agg[i][1]}
+  end
+  TABLE = RunMacro("Select", TABLE, a_selected)
 
   // Convert the TABLE object into a view in order
   // to leverage GISDKs SelfAggregate() function
@@ -335,22 +348,26 @@ Macro "Summarize" (TABLE, a_groupFields, a_stats)
     end
   end
 
-  // Convert a_stats into the format required by SelfAggregate()
-  for s = 1 to a_stats.length do
-    a_saStats = a_saStats + {{a_stats[s]}}
-  end
+  // Create the fields option for SelfAggregate()
+  for i = 1 to agg.length do
+    name = agg[i][1]
+    stats = agg[i][2]
 
-  // Create a "Fields" option for SelfAggregate()
-  a_tableFields = RunMacro("Get Column Names", TABLE)
-  for f = 1 to a_tableFields.length do
-    field = a_tableFields[f]
+    new_stats = null
+    for j = 1 to stats.length do
+      stat = stats[j]
 
-    if ArrayPosition(a_groupFields, {field}, ) = 0 then
-      opts.Fields = opts.Fields + {{field, a_saStats}}
+      new_stats = new_stats + {{Proper(stat)}}
+    end
+    fields.(name) = new_stats
   end
+  opts.Fields = fields
 
   // Create the new view using SelfAggregate()
   agg_view = SelfAggregate("aggview", agg_field_spec, opts)
+
+  /*opts1.Fields = {{"vmt_change", {{"Sum"}, {"Avg"}}}}*/
+  /*agg_view = SelfAggregate("aggview", agg_field_spec, opts1)*/
 
   // Read the view into a table object
   TBL = RunMacro("Read View", agg_view)
@@ -360,26 +377,30 @@ Macro "Summarize" (TABLE, a_groupFields, a_stats)
   // Next is a "Count(bin)" field.
   // Then there is a first field for each group variable ("First(ID)")
   // Then the stat fields in the form of "Sum(trips)"
+
+  // Set group columns back to original name
   for c = 1 to a_groupFields.length do
-    TBL[c][1] = a_groupFields[c] // Set group columns back to original name
+    TBL[c][1] = a_groupFields[c]
   end
+  // Set the count field name
   TBL[a_groupFields.length + 1][1] = "Count"
+  // Remove the First() fields
   TBL = ExcludeArrayElements(
     TBL,
     a_groupFields.length + 2,
     a_groupFields.length
   )
-  for s = 1 to a_stats.length do
-    stat = a_stats[s]
+  // Change fields like Sum(x) to sum_x
+  for i = 1 to agg.length do
+    field = agg[i][1]
+    stats = agg[i][2]
 
-    for f = 1 to a_tableFields.length do
-      field = a_tableFields[f]
+    for j = 1 to stats.length do
+      stat = stats[j]
 
-      if ArrayPosition(a_groupFields, {field}, ) = 0 then do
-        current_field = "[" + stat + "(" + field + ")]"
-        new_field = stat + "_" + field
-        TBL = RunMacro("Rename Field", TBL, current_field, new_field)
-      end
+      current_field = "[" + Proper(stat) + "(" + field + ")]"
+      new_field = lower(stat) + "_" + field
+      TBL = RunMacro("Rename Field", TBL, current_field, new_field)
     end
   end
 
