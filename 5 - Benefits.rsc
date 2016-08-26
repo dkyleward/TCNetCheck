@@ -137,8 +137,10 @@ dBox "Benefits" center,center,170,35 toolbox NoKeyboard Title:"Benefit Calculati
     // Create the output directory
     path = SplitPath(Args.Benefits.allBuildHwy)
     Args.Benefits.outputDir = path[1] + path[2] + "\\BenefitCalculation\\"
-    if GetDirectoryInfo(Args.Benefits.outputDir + "\\*", "All") = null then
-      CreateDirectory(Args.Benefits.outputDir)
+    on error goto skipfolder
+    CreateDirectory(Args.Benefits.outputDir)
+    skipfolder:
+    on error default
 
     // In this code "ab" and "nb" stand for "all build" and "no build"
     // Directionality (AB/BA) will be capitalized to avoid confusion
@@ -253,6 +255,7 @@ dBox "Benefits" center,center,170,35 toolbox NoKeyboard Title:"Benefit Calculati
     v_uniqueProjID = SortVector(v_allprojid,Opts)
     // Determine which projects change capacity
     // (includes road diets as well as widenings)
+    a_projID = null
     for i = 1 to v_uniqueProjID.length do
       curProjID = v_uniqueProjID[i]
 
@@ -262,8 +265,7 @@ dBox "Benefits" center,center,170,35 toolbox NoKeyboard Title:"Benefit Calculati
 
       // If the project has changed capacity, add it to the list
       if totCapDiff <> 0 then do
-        if i = 1 then a_projID = {curProjID}
-        else a_projID = a_projID + {curProjID}
+        a_projID = a_projID + {curProjID}
       end
     end
     v_projID = A2V(a_projID)
@@ -435,7 +437,7 @@ dBox "Benefits" center,center,170,35 toolbox NoKeyboard Title:"Benefit Calculati
     strct = strct + {{"BASecBen"        , "Real", 12, 4, "False", , , "Delay savings from improvements to other links", , , , null}}
     strct = strct + {{"ProjectLength"  , "Real", 12, 2, "False", , ,    "The approximate length of the project", , , , null}}
     strct = strct + {{"ProjBens"        , "Real", 12, 4, "False", , , "Total benefits assigned to this project ID", , , , null}}
-    strct = strct + {{"Score"        , "Real", 12, 4, "False", , , "Final score of this project ID", , , , null}}
+    strct = strct + {{"Score"        , "Real", 12, 4, "False", , , "Final score of this project ID|Manually filled in", , , , null}}
     ModifyTable(dv_temp, strct)
 
     // Set the values of the new fields
@@ -568,8 +570,8 @@ dBox "Benefits" center,center,170,35 toolbox NoKeyboard Title:"Benefit Calculati
       if n = 0 then Throw("No project records found")
 
       // Determine buffer distance
-      v_length = GetDataVector(llayer + "|" + projectSet, "Length", )
-      proj_length = VectorStatistic(v_length, "sum", )
+      v_proj_length = GetDataVector(llayer + "|" + projectSet, "Length", )
+      proj_length = VectorStatistic(v_proj_length, "sum", )
       buffer = proj_length * .75
       buffer = max(buffer, 1.5)
       buffer = min(buffer, 10)
@@ -580,6 +582,13 @@ dBox "Benefits" center,center,170,35 toolbox NoKeyboard Title:"Benefit Calculati
         id = v_projLinkID[i]
 
         // Determine the absolute VMT change on the project link
+        // Use absolute VMT change because changes in either direction
+        // can induce postive or negative changes on surrounding links.
+        // For example, a positive VMT change on a project can create
+        // more delay on surrounding links that are now used to feed
+        // the project link.  A positive VMT change can also cause a
+        // reduction in delay on a parallel facility that now has less
+        // traffic.
         rh = LocateRecord(llayer + "|", "ID", {id}, )
         SetRecord(llayer, rh)
         ab_vol_change = llayer.ABVolChange
@@ -592,9 +601,11 @@ dBox "Benefits" center,center,170,35 toolbox NoKeyboard Title:"Benefit Calculati
         SelectByQuery(linkSet, "Several", qry)
 
         // Select all links within the buffer distance of the current project
-        // link and collect their link IDs.
+        // link and collect their link IDs.  Don't include the current project
+        // link in that set.
         opts = null
         opts.Inclusion = "Intersecting"
+        opts.[Source Not] = linkSet
         SelectByVicinity(
           linkBufferSet, "Several", llayer + "|" + linkSet, buffer, opts
         )
@@ -621,7 +632,7 @@ dBox "Benefits" center,center,170,35 toolbox NoKeyboard Title:"Benefit Calculati
           DATA.BufferLinkID = DATA.BufferLinkID + {bufferLinkID}
           DATA.SecondaryBenefit = DATA.SecondaryBenefit + {SecBen}
           DATA.projID = DATA.projID + {projID}
-          DATA.linkID = DATA.linkID + {id}
+          DATA.projlinkID = DATA.projlinkID + {id}
           DATA.vmt_change = DATA.vmt_change + {vmt_change}
           DATA.buffer = DATA.buffer + {buffer}
           DATA.dist2link = DATA.dist2link + {v_dist2link[bli]}
@@ -634,152 +645,38 @@ dBox "Benefits" center,center,170,35 toolbox NoKeyboard Title:"Benefit Calculati
     DATA = RunMacro("Vectorize Table", DATA)
     RunMacro("Write Table", DATA, Args.Benefits.outputDir + "test.csv")
 
-Throw()
-    // Loop over every project link
-    v_projLinkID = GetDataVector(llayer + "|" + projectSet,"ID",)
-    v_projLength = GetDataVector(llayer + "|" + projectSet,"ProjectLength",)
-    CreateProgressBar("Buffering Projects","False")
-    for p = 1 to v_projLinkID.length do
-      id = v_projLinkID[p]
-      buffer = v_projLength[p] * .75
-      buffer = max(buffer,1.5)
-      buffer = min(buffer,10)
-      UpdateProgressBar("Buffering Project Link " + String(p) + " of " + String(v_projLinkID.length),
-                        round(p / v_projLinkID.length * 100,0))
+    // Use the tables library to apportion benefits
+    agg = null
+    agg.vmt_change = {"sum"}
+    agg.DistWeight = {"sum"}
+    summary = RunMacro("Summarize", DATA, {"BufferLinkID"}, agg)
+    /*summary = RunMacro(
+      "Select", {"BufferLinkID", "sum_vmt_change", "sum_DistWeight"}
+    )*/
+    DATA = RunMacro("Join Tables", DATA, "BufferLinkID", summary, "BufferLinkID")
+    DATA.pct_vmt = DATA.vmt_change / DATA.sum_vmt_change
+    DATA.pct_distweight = DATA.DistWeight / DATA.sum_DistWeight
+    DATA.combined = DATA.pct_vmt * DATA.pct_distweight
 
-      // Select the current link
-      qry = "Select * where ID = " + String(id)
-      SelectByQuery("templink","Several",qry)
+    agg = null
+    agg.combined = {"sum"}
+    summary2 = RunMacro("Summarize", DATA, {"BufferLinkID"}, agg)
+    /*summary2 = RunMacro("Select", {"BufferLinkID", "sum_combined"})*/
+    DATA = RunMacro("Join Tables", DATA, "BufferLinkID", summary2, "BufferLinkID")
+    DATA.pct = DATA.combined / DATA.sum_combined
+    DATA.final = DATA.pct * DATA.SecondaryBenefit
 
-      // Select all links within the buffer distance of the current project link
-      // and collect their link IDs
-      opts = null
-      opts.Inclusion = "Intersecting"
-      SelectByVicinity("tempset","Several",llayer + "|templink",buffer,opts)
-      v_bufferLinkIDs = GetDataVector(llayer + "|tempset","ID",)
-
-      // Update the DATA object with the results
-      for b = 1 to v_bufferLinkIDs.length do
-        bufferLinkID = String(v_bufferLinkIDs[b])
-
-        if DATA.(bufferLinkID) = "" then DATA.(bufferLinkID) = {id}
-        else DATA.(bufferLinkID) = DATA.(bufferLinkID) + {id}
-      end
-    end
-    DeleteSet("templink")
-    DeleteSet("tempset")
-    DestroyProgressBar()
-
-    /*
-    -----------------------------------------------
-    Step 2:
-    Work through each link and assign its secondary
-    benefits to nearby projects
-    -----------------------------------------------
-    */
-
-    v_projSecondaryBen = Vector(v_projID.length,"Float",{{"Constant",0}})  // will hold final, secondary benefits for each project ID
-    currentLinkSet = RunMacro("G30 create set","Current Link Being Evaluated")
-    nearbyProjectSet = RunMacro("G30 create set","Project Links Near Current Link")
-
-    EnableProgressBar("Assigning Secondary Benefits to Projects",2)
-    CreateProgressBar("Working through each link", "True")
-
-    // These links will have their secondary benefit calc written out
-    a_traceLinkID = {30855,9635,16117,4476,6077,35344,19289,6077}
-
-    for i = 1 to v_linkID.length do
-      linkID = v_linkID[i]
-
-      // Update the progress bar
-      intPercent = Round(i / v_linkID.length * 100,0)
-      interrupted = UpdateProgressBar("Link " + String(i) + " of " + String(v_linkID.length),intPercent)
-
-      // If the user presses the "Cancel" button, stop
-      if interrupted then do
-        ShowMessage("User pressed the 'Cancel' button.")
-        goto quit
-      end
-
-
-
-
-      // Create a selection set of the current link
-      curLinkQuery = "Select * where ID = " + String(linkID)
-      n = SelectByQuery(currentLinkSet,"Several",curLinkQuery)
-      // Collect its secondary benefit value
-      Opts = null
-      Opts.[Missing As Zero] = "True"
-      v_linkABSecBen = GetDataVector(llayer + "|" + currentLinkSet,"ABSecBen",Opts)
-      v_linkBASecBen = GetDataVector(llayer + "|" + currentLinkSet,"BASecBen",Opts)
-      linkSecBen = v_linkABSecBen[1] + v_linkBASecBen[1]
-
-      // Only continue if the there is secondary benefit
-      // on the link to distribute
-      if abs(linkSecBen) > .001 then do
-
-        if DATA.(String(linkID)) <> "" then do
-
-          // Create a selection set of the project links that were tagged
-          // the current link
-          a_temp = DATA.(String(linkID))
-          for np = 1 to a_temp.length do
-            id = a_temp[np]
-            qry = "Select * where ID = " + String(id)
-            if np = 1 then SelectByQuery(nearbyProjectSet,"Several",qry)
-            else SelectByQuery(nearbyProjectSet,"More",qry)
-          end
-
-          // Get a vector of those links' IDs, volume change, and length
-          Opts = null
-          Opts.[Missing As Zero] = "True"
-          v_nearbyProjID = GetDataVector(llayer + "|" + nearbyProjectSet,Args.Benefits.projID,Opts)
-          v_nearbyLinkID = GetDataVector(llayer + "|" + nearbyProjectSet,"ID",Opts)
-          v_nearbyProjABVolDiff = GetDataVector(llayer + "|" + nearbyProjectSet,"ABVolChange",Opts)
-          v_nearbyProjBAVolDiff = GetDataVector(llayer + "|" + nearbyProjectSet,"BAVolChange",Opts)
-          v_nearbyProjLength = GetDataVector(llayer + "|" + nearbyProjectSet,"Length",Opts)
-
-          // Use the change in VMT to apportion the secondary benefit
-          // Project links increasing in volume can cause increased delay
-          // on nearby links. (Improving MLK tunnel in VB made the approaching roads worse)
-          // Likewise, a road diet can cause traffic to reroute, which can improve delay
-          // on some nearby links.  As a result, the direction of the volume change does
-          // not matter.  Take the absolute value.
-          v_nearbyProjVMTDiff = ( v_nearbyProjABVolDiff + v_nearbyProjBAVolDiff ) * v_nearbyProjLength
-          v_nearbyProjAbsVMTDiff = abs(v_nearbyProjVMTDiff)
-
-          totalVMTDiff = VectorStatistic(v_nearbyProjAbsVMTDiff,"Sum",)
-          v_nearbyProjPctVMTDiff = v_nearbyProjAbsVMTDiff / totalVMTDiff
-          v_nearbyProjSecBen = linkSecBen * v_nearbyProjPctVMTDiff
-
-          // Add this current link's apportioned benefit
-          // to the final vector
-          for j = 1 to v_nearbyProjID.length do
-            nearbyProjID = nz(v_nearbyProjID[j])
-            nearbyProjSecBen = nz(v_nearbyProjSecBen[j])
-                                                                                                         // this part is OK - initialized with 0s
-            v_projSecondaryBen = if ( v_projID = nearbyProjID ) then v_projSecondaryBen + nearbyProjSecBen else v_projSecondaryBen
-          end
-
-          // Trace write out
-          if ArrayPosition(a_traceLinkID,{linkID},) <> 0 then do
-            traceCSV = Args.Benefits.outputDir + "trace for link " + String(linkID) + ".csv"
-            file = OpenFile(traceCSV,"w")
-            WriteLine(file,"Tracing Secondary Benefit Assignment")
-            WriteLine(file,"Link ID:," + String(linkID))
-            WriteLine(file,"Total Secondary Benefit," + String(linkSecBen))
-            WriteLine(file,"Buffer Distance," + Args.Benefits.buffer)
-            WriteLine(file,"")
-            WriteLine(file,"Project ID,Link ID,VMT Change from NoBuild,Abs VMT Change,%VMT Change,SecBen Assigned")
-            for t = 1 to v_nearbyProjID.length do
-                WriteLine(file,String(v_nearbyProjID[t]) + "," + String(v_nearbyLinkID[t]) + "," + String(v_nearbyProjVMTDiff[t]) + "," + String(v_nearbyProjAbsVMTDiff[t]) + "," + String(v_nearbyProjPctVMTDiff[t]) + "," + String(v_nearbyProjSecBen[t])     )
-            end
-            CloseFile(file)
-          end
-        end
-      end
-    end
-    DestroyProgressBar()
+    agg = null
+    agg.final = {"sum"}
+    secondary_tbl = RunMacro("Summarize", DATA, {"projID"}, agg)
+    secondary_tbl = RunMacro(
+      "Rename Field", secondary_tbl, "sum_final", "secondary_benefits"
+    )
+    secondary_tbl.Count = null
+    RunMacro(
+      "Write Table", secondary_tbl,
+      Args.Benefits.outputDir + "secondary benefit assignment.csv"
+    )
 
 
 
@@ -824,27 +721,32 @@ Throw()
     // Utilization
     v_projUtil = v_projVMTDiff / v_projCMADiff
 
-    // Total Benefit
-    v_projTotalBen = v_projPrimeBen + v_projSecondaryBen
+    // Create a final table object
+    a_colNames = {"proj_id", "vmt_diff", "cap_diff",
+      "utilization", "primary_benefits"}
+    a_data = {v_projID, v_projVMTDiff, v_projCMADiff,
+      v_projUtil, v_projPrimeBen}
+    RESULT = RunMacro("Create Table", a_colNames, a_data)
 
-    // Write the results out to a CSV
-    ouputCSV = Args.Benefits.outputDir + "ProjectBenefitResults.csv"
-    file = OpenFile(ouputCSV,"w")
+    // Join the secondary benefit information to that table
+    // and calculate total benefits
+    RESULT = RunMacro("Join Tables", RESULT, "proj_id", secondary_tbl, "projID")
+    RESULT.total_benefits = RESULT.primary_benefits + RESULT.secondary_benefits
 
-    warningString = ""
+    RunMacro(
+      "Write Table", RESULT,
+      Args.Benefits.outputDir + "final results.csv"
+    )
+
+    // Show warning if the delay increased from no-build to build
     v_totalDelayDiff = v_ABDelayDiff + v_BADelayDiff
-    if VectorStatistic(v_totalDelayDiff,"sum",) > 0 then
-    warningString = "Warning: Total delay increased from no-build to build scenarios."
-    WriteLine(file,warningString)
-
-    WriteLine(file,"ProjID,Additional CMA,Additional VMT,Utilization,Primary Benefits,Secondary Benefits,Total Benefits")
-    for i = 1 to v_projID.length do
-      // WriteLine(file, String(v_projID[i]) + "," + String(v_projCMADiff[i]) + "," + String(v_projVMTDiff[i]) + "," + String(v_projUtil[i]) + "," + String(v_projPrimeBen[i]) + "," + String(v_projSecondaryBen[i]) + "," + String(v_projTotalBen[i]))
-      WriteLine(file, String(v_projID[i]) + "," + Format(v_projCMADiff[i],"*.00") + "," + Format(v_projVMTDiff[i],"*.00")
-              + "," + Format(v_projUtil[i],"*%.0") + "," + Format(v_projPrimeBen[i],"*.00") + "," + Format(v_projSecondaryBen[i],"*.00") + "," + Format(v_projTotalBen[i],"*.00"))
+    if VectorStatistic(v_totalDelayDiff,"sum",) > 0 then do
+      warningString = "Warning: Total delay increased from no-build " +
+        "to build scenarios."
+      ShowMessage(warningString)
     end
 
-    CloseFile(file)
+    ShowMessage("Done calculating benefits")
     quit:
   enditem
 
@@ -870,11 +772,6 @@ Throw()
 
 	// Quit Button
 	button "Quit" 55, 16, 12 do
-    // a_view = GetViewNames()
-    // for i = 1 to a_view.length do
-        // CloseView(a_view[i])
-    // end
-    //RunMacro("G30 File Close All")
     Return(0)
 	enditem
 EndDbox
