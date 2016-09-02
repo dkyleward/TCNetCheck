@@ -562,7 +562,11 @@ dBox "Benefits" center,center,170,35 toolbox NoKeyboard Title:"Benefit Calculati
         " of " + String(v_projID.length),
         R2I((p - 1) / v_projID.length * 100)
       )
-      if cancel then Throw("User pressed 'Cancel'")
+      if cancel then do
+        DestroyProgressBar()
+        DestroyProgressBar()
+        Throw("User pressed 'Cancel'")
+      end
 
       // Select the current project
       SetLayer(llayer)
@@ -589,7 +593,11 @@ dBox "Benefits" center,center,170,35 toolbox NoKeyboard Title:"Benefit Calculati
           " of " + String(v_projLinkID.length),
           R2I((i - 1) / v_projLinkID.length * 100)
         )
-        if cancel then Throw("User pressed 'Cancel'")
+        if cancel then do
+          DestroyProgressBar()
+          DestroyProgressBar()
+          Throw("User pressed 'Cancel'")
+        end
 
         // Determine the absolute VMT change on the project link
         // Use absolute VMT change because changes in either direction
@@ -693,9 +701,10 @@ dBox "Benefits" center,center,170,35 toolbox NoKeyboard Title:"Benefit Calculati
           FINAL = RunMacro("Bind Rows", FINAL, DATA)
         end
       end
+
+      DestroyProgressBar()
     end
 
-    DestroyProgressBar()
     DestroyProgressBar()
 
     // Use the tables library to vectorize and write out DATA
