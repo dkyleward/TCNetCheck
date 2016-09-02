@@ -532,8 +532,8 @@ dBox "Benefits" center,center,170,35 toolbox NoKeyboard Title:"Benefit Calculati
 
     mtx = OpenMatrix(mtx_file, )
     {ri, ci} = GetMatrixIndex(mtx)
-    mtx_cur = CreateMatrixCurrencies(mtx, ri, ci, )
-    mtx_cur = mtx_cur[1][2]
+    mtx_cores = GetMatrixCoreNames(mtx)
+    mtx_cur = CreateMatrixCurrency(mtx, mtx_cores[1], ri, ci, )
 
     /*
     Loop over each project.
@@ -620,18 +620,18 @@ dBox "Benefits" center,center,170,35 toolbox NoKeyboard Title:"Benefit Calculati
         SelectByVicinity(
           linkBufferSet, "Several", llayer + "|" + linkSet, buffer, opts
         )
-        v_bufferLinkIDs = GetDataVector(llayer + "|" + linkBufferSet, "ID",)
+        v_bufferLinkIDs = GetDataVector(llayer + "|" + linkBufferSet, "ID", opts)
 
-        // For each link in the linkBufferSet, add all relevant info to DATA
+        // Determine distance between buffer links and project link
+        a_nodes = GetEndpoints(id)
+        a_min_dist = null
         for bli = 1 to v_bufferLinkIDs.length do
           bufferLinkID = v_bufferLinkIDs[bli]
 
-          // Determine distance between buffer and project link
-          p_nodes = GetEndpoints(id)
           b_nodes = GetEndpoints(bufferLinkID)
           min_dist = 1000
-          for p = 1 to 2 do
-            from = String(p_nodes[p])
+          for a = 1 to 2 do
+            from = String(a_nodes[a])
             for b = 1 to 2 do
               to = String(b_nodes[b])
               dist = GetMatrixValue(mtx_cur, from, to)
@@ -639,27 +639,58 @@ dBox "Benefits" center,center,170,35 toolbox NoKeyboard Title:"Benefit Calculati
             end
           end
 
-          // Collect the secondary benefit data on the link
-          rh = LocateRecord(llayer + "|", "ID", {bufferLinkID}, )
-          SetRecord(llayer, rh)
-          ABSecBen = llayer.ABSecBen
-          BASecBen = llayer.BASecBen
-          SecBen = ABSecBen + BASecBen
+          a_min_dist = a_min_dist + {min_dist}
+        end
+        v_dist = A2V(a_min_dist)
 
-          DATA.BufferLinkID = DATA.BufferLinkID + {bufferLinkID}
-          DATA.SecondaryBenefit = DATA.SecondaryBenefit + {SecBen}
-          DATA.projID = DATA.projID + {projID}
-          DATA.projlinkID = DATA.projlinkID + {id}
-          DATA.vmt_change = DATA.vmt_change + {vmt_change}
-          DATA.buffer = DATA.buffer + {buffer}
-          DATA.dist2link = DATA.dist2link + {min_dist}
+        // Create a table with the buffer link ids
+        // and their distances to the project link.
+        DATA = null
+        DATA.BufferLinkID = v_bufferLinkIDs
 
-          // Distance decay formula
-          /*DATA.DistWeight = DATA.DistWeight + {1 - v_dist2link[bli] / buffer}*/
-          // Cap min distance to .5 miles. Use (1/dist)^.5
-          DATA.DistWeight = DATA.DistWeight + {
-            Pow(1 / max(.5, min_dist), .5)
-          }
+        // Collect secondary info and add to table
+        ABSecBen = GetDataVector(llayer + "|" + linkBufferSet, "ABSecBen", )
+        BASecBen = GetDataVector(llayer + "|" + linkBufferSet, "BASecBen", )
+        SecBen = ABSecBen + BASecBen
+        DATA.SecondaryBenefit = SecBen
+
+        // Add other pertinent data
+        // Add vmt change
+        opts = null
+
+        opts.Constant = projID
+        type = if TypeOf(projID) = "string" then "string" else "Long"
+        v_temp = Vector(v_bufferLinkIDs.length, type, opts)
+        DATA.projID = v_temp
+
+        opts.Constant = id
+        v_temp = Vector(v_bufferLinkIDs.length, "Long", opts)
+        DATA.projLinkID = v_temp
+
+        opts.Constant = vmt_change
+        v_temp = Vector(v_bufferLinkIDs.length, "Double", opts)
+        DATA.vmt_change = v_temp
+
+        opts.Constant = buffer
+        v_temp = Vector(v_bufferLinkIDs.length, "Double", opts)
+        DATA.buffer = v_temp
+
+        // Add distance and distance decay info
+        DATA.dist2link = v_dist
+        // Set distance floor to .5 miles. Use (1/dist)^.5
+        DATA.DistWeight = Pow(1 / max(.5, v_dist), .5)
+
+        // Build the FINAL table by binding DATA to it
+        // after each loop
+        if p = 1 and i = 1 then do
+          FINAL = DATA
+          test1 = p
+          test2 = i
+          test3 = ""
+        end else do
+          test1 = p
+          test2 = i
+          FINAL = RunMacro("Bind Rows", FINAL, DATA)
         end
       end
     end
@@ -668,38 +699,38 @@ dBox "Benefits" center,center,170,35 toolbox NoKeyboard Title:"Benefit Calculati
     DestroyProgressBar()
 
     // Use the tables library to vectorize and write out DATA
-    DATA = RunMacro("Vectorize Table", DATA)
-    RunMacro("Write Table", DATA, Args.Benefits.outputDir + "test.csv")
+    /*DATA = RunMacro("Vectorize Table", DATA)
+    RunMacro("Write Table", DATA, Args.Benefits.outputDir + "test.csv")*/
 
     // Use the tables library to apportion benefits
     agg = null
     agg.vmt_change = {"sum"}
     agg.DistWeight = {"sum"}
-    summary = RunMacro("Summarize", DATA, {"BufferLinkID"}, agg)
+    summary = RunMacro("Summarize", FINAL, {"BufferLinkID"}, agg)
     /*summary = RunMacro(
       "Select", {"BufferLinkID", "sum_vmt_change", "sum_DistWeight"}
     )*/
-    DATA = RunMacro("Join Tables", DATA, "BufferLinkID", summary, "BufferLinkID")
-    DATA.pct_vmt = DATA.vmt_change / DATA.sum_vmt_change
-    DATA.pct_distweight = DATA.DistWeight / DATA.sum_DistWeight
-    DATA.combined = DATA.pct_vmt * DATA.pct_distweight
+    FINAL = RunMacro("Join Tables", FINAL, "BufferLinkID", summary, "BufferLinkID")
+    FINAL.pct_vmt = FINAL.vmt_change / FINAL.sum_vmt_change
+    FINAL.pct_distweight = FINAL.DistWeight / FINAL.sum_DistWeight
+    FINAL.combined = FINAL.pct_vmt * FINAL.pct_distweight
 
     agg = null
     agg.combined = {"sum"}
-    summary2 = RunMacro("Summarize", DATA, {"BufferLinkID"}, agg)
+    summary2 = RunMacro("Summarize", FINAL, {"BufferLinkID"}, agg)
     /*summary2 = RunMacro("Select", {"BufferLinkID", "sum_combined"})*/
-    DATA = RunMacro("Join Tables", DATA, "BufferLinkID", summary2, "BufferLinkID")
-    DATA.pct = DATA.combined / DATA.sum_combined
-    DATA.final = DATA.pct * DATA.SecondaryBenefit
+    FINAL = RunMacro("Join Tables", FINAL, "BufferLinkID", summary2, "BufferLinkID")
+    FINAL.pct = FINAL.combined / FINAL.sum_combined
+    FINAL.final = FINAL.pct * FINAL.SecondaryBenefit
     // Write out intermediate table for checking
     RunMacro(
-      "Write Table", DATA,
+      "Write Table", FINAL,
       Args.Benefits.outputDir + "check secondary benefit assignment.csv"
     )
 
     agg = null
     agg.final = {"sum"}
-    secondary_tbl = RunMacro("Summarize", DATA, {"projID"}, agg)
+    secondary_tbl = RunMacro("Summarize", FINAL, {"projID"}, agg)
     secondary_tbl = RunMacro(
       "Rename Field", secondary_tbl, "sum_final", "secondary_benefits"
     )
