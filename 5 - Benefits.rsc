@@ -642,7 +642,7 @@ dBox "Benefits" center,center,170,35 toolbox NoKeyboard Title:"Benefit Calculati
           /*DATA.DistWeight = DATA.DistWeight + {1 - v_dist2link[bli] / buffer}*/
           // Cap min distance to .5 miles. Use (1/dist)^.5
           DATA.DistWeight = DATA.DistWeight + {
-            (1 / max(.5, v_dist2link[bli]))^.5
+            Pow(1 / max(.5, v_dist2link[bli]), .5)
           }
         end
       end
