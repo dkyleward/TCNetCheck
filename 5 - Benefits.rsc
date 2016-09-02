@@ -554,8 +554,15 @@ dBox "Benefits" center,center,170,35 toolbox NoKeyboard Title:"Benefit Calculati
     DATA = null
 
     // Loop over each project
+    CreateProgressBar("Secondary Benefit Allocation", "True")
     for p = 1 to v_projID.length do
       projID = v_projID[p]
+      cancel = UpdateProgressBar(
+        "Processing project number " + String(p) +
+        " of " + String(v_projID.length),
+        R2I((p - 1) / v_projID.length * 100)
+      )
+      if cancel then Throw("User pressed 'Cancel'")
 
       // Select the current project
       SetLayer(llayer)
@@ -574,8 +581,15 @@ dBox "Benefits" center,center,170,35 toolbox NoKeyboard Title:"Benefit Calculati
 
       // Loop over each link of the current project
       v_projLinkID = GetDataVector(llayer + "|" + projectSet, "ID",)
+      CreateProgressBar("Individual Project Links", "True")
       for i = 1 to v_projLinkID.length do
         id = v_projLinkID[i]
+        cancel = UpdateProgressBar(
+          "Processing link number " + String(i) +
+          " of " + String(v_projLinkID.length),
+          R2I((i - 1) / v_projLinkID.length * 100)
+        )
+        if cancel then Throw("User pressed 'Cancel'")
 
         // Determine the absolute VMT change on the project link
         // Use absolute VMT change because changes in either direction
@@ -649,6 +663,9 @@ dBox "Benefits" center,center,170,35 toolbox NoKeyboard Title:"Benefit Calculati
         end
       end
     end
+
+    DestroyProgressBar()
+    DestroyProgressBar()
 
     // Use the tables library to vectorize and write out DATA
     DATA = RunMacro("Vectorize Table", DATA)
