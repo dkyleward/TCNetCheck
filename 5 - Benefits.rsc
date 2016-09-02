@@ -462,15 +462,7 @@ dBox "Benefits" center,center,170,35 toolbox NoKeyboard Title:"Benefit Calculati
 
 
     /*
-    New Method (8/2015): Vary search radius by project length
-
-    Because the previous method looped over every link in the network,
-    the search radius had to be constant.  This method will first looped
-    over project link IDs.  For each one, a buffer will be created based on
-    the total project length.  All links in that buffer will be tagged with
-    the project link's ID.  Thus, when finally looping over every link
-    in the network, a second search isn't necessary.  The link already
-    knows every project link it needs to assign secondary benefit to.
+    Secondary delay allocation
     */
 
     // Loop over each project ID and determine the length
@@ -506,43 +498,47 @@ dBox "Benefits" center,center,170,35 toolbox NoKeyboard Title:"Benefit Calculati
     DropLayerFromWorkspace(dv_temp)
 
     // Create a map of the resulting highway layer
-    {map,nlayer,llayer} = RunMacro("Create Highway Map",Args.Benefits.resultHwy)
+    {map,nlayer,llayer} = RunMacro("Create Highway Map", Args.Benefits.resultHwy)
     SetLayer(llayer)
 
-    // Create a selection set of project links (where projs change cap)
-    // Written this way because there is an upper limit on the number
-    // of conditions (project IDs) that can be listed in a single query
-    /*projectSet = RunMacro("G30 create set","Capacity-Changing Project Links")
-    for i = 1 to v_projID.length do
-      projID = v_projID[i]
-      // Some models use strings for project IDs, others don't.  Catch both.
-      if Args.Benefits.projIDType = "String" then
-        projQuery = "Select * where " + Args.Benefits.projID + " = '" +
-        projID + "'"
-      else projQuery = "Select * where " + Args.Benefits.projID + " = " +
-        String(projID)
-      n = SelectByQuery(projectSet,"more",projQuery)
-    end*/
+    // Create a distance skim matrix from every node to every node
+    Opts = null
+    Opts.Input.[Link Set] = {Args.Benefits.resultHwy + "|" + llayer, llayer}
+    Opts.Global.[Network Label] = "network"
+    Opts.Global.[Network Options].[Turn Penalties] = "Yes"
+    Opts.Global.[Network Options].[Keep Duplicate Links] = "FALSE"
+    Opts.Global.[Network Options].[Ignore Link Direction] = "FALSE"
+    Opts.Global.[Network Options].[Time Units] = "Minutes"
+    Opts.Global.[Link Options].Length = {llayer + ".Length", llayer + ".Length", , , "False"}
+    Opts.Global.[Length Units] = "Miles"
+    Opts.Global.[Time Units] = "Minutes"
+    net_file = Args.Benefits.outputDir + "/network.net"
+    Opts.Output.[Network File] = net_file
+    ret = RunMacro("TCB Run Operation", "Build Highway Network", Opts, &Ret)
+
+    Opts = null
+    Opts.Input.Network = net_file
+    Opts.Input.[Origin Set] = {Args.Benefits.resultHwy + "|" + nlayer, nlayer}
+    Opts.Input.[Destination Set] = {Args.Benefits.resultHwy + "|" + nlayer, nlayer}
+    Opts.Input.[Via Set] = {Args.Benefits.resultHwy + "|" + nlayer, nlayer}
+    Opts.Field.Minimize = "Length"
+    Opts.Field.Nodes = nlayer + ".ID"
+    Opts.Flag = {}
+    Opts.Output.[Output Matrix].Label = "Shortest Path"
+    Opts.Output.[Output Matrix].Compression = 1
+    mtx_file = Args.Benefits.outputDir + "distance.mtx"
+    Opts.Output.[Output Matrix].[File Name] = mtx_file
+    ret = RunMacro("TCB Run Procedure", "TCSPMAT", Opts, &Ret)
+
+    mtx = OpenMatrix(mtx_file, )
+    {ri, ci} = GetMatrixIndex(mtx)
+    mtx_cur = CreateMatrixCurrencies(mtx, ri, ci, )
+    mtx_cur = mtx_cur[1][2]
 
     /*
-    New Method (8/2015): Vary search radius by project length
+    Loop over each project.
 
-    Create a data structure that, for every link, has a string
-    listing every project link to be considered for secondary
-    benefit allocation.
-
-    e.g. "11975,10938,10999"
-    */
-
-    /*DATA = null
-    v_allIDs  = GetDataVector(llayer + "|","ID",)
-    for i = 1 to v_allIDs.length do
-        DATA.(String(v_allIDs[i])) = ""
-    end*/
-
-    /*
-    Three sets will be used within the loop
-
+    Three sets will be used within the loop:
     projectSet
       Selection of links of the current project
     linkSet
@@ -612,16 +608,22 @@ dBox "Benefits" center,center,170,35 toolbox NoKeyboard Title:"Benefit Calculati
         )
         v_bufferLinkIDs = GetDataVector(llayer + "|" + linkBufferSet, "ID",)
 
-        // Calculate distance of buffered links to current project link
-        RunMacro(
-          "Distance to Project", map, llayer,
-          linkBufferSet, "ID", id
-        )
-        v_dist2link = GetDataVector(llayer + "|" + linkBufferSet, "dist_2_proj",)
-
         // For each link in the linkBufferSet, add all relevant info to DATA
         for bli = 1 to v_bufferLinkIDs.length do
           bufferLinkID = v_bufferLinkIDs[bli]
+
+          // Determine distance between buffer and project link
+          p_nodes = GetEndpoints(id)
+          b_nodes = GetEndpoints(bufferLinkID)
+          min_dist = 1000
+          for p = 1 to 2 do
+            from = String(p_nodes[p])
+            for b = 1 to 2 do
+              to = String(b_nodes[b])
+              dist = GetMatrixValue(mtx_cur, from, to)
+              if nz(dist) > 0 then min_dist = min(min_dist, dist)
+            end
+          end
 
           // Collect the secondary benefit data on the link
           rh = LocateRecord(llayer + "|", "ID", {bufferLinkID}, )
@@ -636,13 +638,13 @@ dBox "Benefits" center,center,170,35 toolbox NoKeyboard Title:"Benefit Calculati
           DATA.projlinkID = DATA.projlinkID + {id}
           DATA.vmt_change = DATA.vmt_change + {vmt_change}
           DATA.buffer = DATA.buffer + {buffer}
-          DATA.dist2link = DATA.dist2link + {v_dist2link[bli]}
+          DATA.dist2link = DATA.dist2link + {min_dist}
 
           // Distance decay formula
           /*DATA.DistWeight = DATA.DistWeight + {1 - v_dist2link[bli] / buffer}*/
           // Cap min distance to .5 miles. Use (1/dist)^.5
           DATA.DistWeight = DATA.DistWeight + {
-            Pow(1 / max(.5, v_dist2link[bli]), .5)
+            Pow(1 / max(.5, min_dist), .5)
           }
         end
       end
@@ -910,4 +912,24 @@ Macro "Prepare Dist Est File"
 
   CloseFile(file)
   ShowMessage("Done")
+EndMacro
+
+/*
+Uses a skim matrix curreny and two link IDs and returns the
+distance between them.
+*/
+
+Macro "Get Dist from Matrix" (a_id, b_id, mtx_cur)
+
+  a_nodes = GetEndpoints(a_id)
+  b_nodes = GetEndpoints(b_id)
+
+  min_dist = 1000
+  for a = 1 to 2 do
+    for b = 1 to 2 do
+      dist = GetMatrixValue(mtx_cur, a_nodes[a], b_nodes[b])
+      if dist > 0 then min_dist = min(min_dist, dist)
+    end
+  end
+
 EndMacro
