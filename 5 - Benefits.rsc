@@ -601,11 +601,12 @@ dBox "Benefits" center,center,170,35 toolbox NoKeyboard Title:"Benefit Calculati
         SelectByQuery(linkSet, "Several", qry)
 
         // Select all links within the buffer distance of the current project
-        // link and collect their link IDs.  Don't include the current project
-        // link in that set.
+        // link and collect their link IDs.  Don't include links from the
+        // current project in the set.  Other projects' links can be included.
+        // They may have secondary benefits (mixed benefit type).
         opts = null
         opts.Inclusion = "Intersecting"
-        opts.[Source Not] = linkSet
+        opts.[Source Not] = projectSet
         SelectByVicinity(
           linkBufferSet, "Several", llayer + "|" + linkSet, buffer, opts
         )
