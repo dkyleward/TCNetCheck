@@ -636,6 +636,8 @@ dBox "Benefits" center,center,170,35 toolbox NoKeyboard Title:"Benefit Calculati
           DATA.vmt_change = DATA.vmt_change + {vmt_change}
           DATA.buffer = DATA.buffer + {buffer}
           DATA.dist2link = DATA.dist2link + {v_dist2link[bli]}
+
+          // Distance decay formula
           DATA.DistWeight = DATA.DistWeight + {1 - v_dist2link[bli] / buffer}
         end
       end
@@ -665,6 +667,11 @@ dBox "Benefits" center,center,170,35 toolbox NoKeyboard Title:"Benefit Calculati
     DATA = RunMacro("Join Tables", DATA, "BufferLinkID", summary2, "BufferLinkID")
     DATA.pct = DATA.combined / DATA.sum_combined
     DATA.final = DATA.pct * DATA.SecondaryBenefit
+    // Write out intermediate table for checking
+    RunMacro(
+      "Write Table", DATA,
+      Args.Benefits.outputDir + "check secondary benefit assignment.csv"
+    )
 
     agg = null
     agg.final = {"sum"}
@@ -673,12 +680,6 @@ dBox "Benefits" center,center,170,35 toolbox NoKeyboard Title:"Benefit Calculati
       "Rename Field", secondary_tbl, "sum_final", "secondary_benefits"
     )
     secondary_tbl.Count = null
-    RunMacro(
-      "Write Table", secondary_tbl,
-      Args.Benefits.outputDir + "secondary benefit assignment.csv"
-    )
-
-
 
     /*
     --------------------------------------------------------------
