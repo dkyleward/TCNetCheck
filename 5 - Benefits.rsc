@@ -638,7 +638,11 @@ dBox "Benefits" center,center,170,35 toolbox NoKeyboard Title:"Benefit Calculati
           DATA.dist2link = DATA.dist2link + {v_dist2link[bli]}
 
           // Distance decay formula
-          DATA.DistWeight = DATA.DistWeight + {1 - v_dist2link[bli] / buffer}
+          /*DATA.DistWeight = DATA.DistWeight + {1 - v_dist2link[bli] / buffer}*/
+          // Cap min distance to .5 miles. Use (1/dist)^.5
+          DATA.DistWeight = DATA.DistWeight + {
+            (1 / max(.5, v_dist2link[bli]))^.5
+          }
         end
       end
     end
