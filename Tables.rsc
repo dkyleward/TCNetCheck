@@ -606,3 +606,37 @@ Macro "Join Tables" (master_tbl, m_id, slave_tbl, s_id)
 
   return(TABLE)
 EndMacro
+
+/*
+Combines the rows of two tables. They must have the
+same columns.
+*/
+
+Macro "Bind Rows" (first, second)
+
+  // Check that tables have same columns
+  col1 = RunMacro("Get Column Names", first)
+  col2 = RunMacro("Get Column Names", second)
+  for i = 1 to col1.length do
+    if col1[i] <> col2[i] then Throw("Bind Rows: Columns are not the same")
+  end
+
+  // Make sure both tables are vectorized
+  first = RunMacro("Vectorize Table", first)
+  second = RunMacro("Vectorize Table", second)
+
+  // Combine tables
+  final = null
+  for i = 1 to col1.length do
+    col_name = col1[i]
+
+    a1 = V2A(first.(col_name))
+    a2 = V2A(second.(col_name))
+    final.(col_name) = a1 + a2
+  end
+
+  // Vectorize the final table
+  final = RunMacro("Vectorize Table", final)
+
+  return(final)
+EndMacro
