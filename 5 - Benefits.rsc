@@ -631,25 +631,42 @@ dBox "Benefits" center,center,170,35 toolbox NoKeyboard Title:"Benefit Calculati
         v_bufferLinkIDs = GetDataVector(llayer + "|" + linkBufferSet, "ID", opts)
 
         // Determine distance between buffer links and project link
+        // Each link will have four nodal distance values to choose from.
+        // (Two nodes for buffer link and two for project link.)
+        // Take the average of the largest and smallest distance.
+        // Must also check both directions.
         a_nodes = GetEndpoints(id)
-        a_min_dist = null
+        a_avg_dist = null
         for bli = 1 to v_bufferLinkIDs.length do
           bufferLinkID = v_bufferLinkIDs[bli]
 
           b_nodes = GetEndpoints(bufferLinkID)
           min_dist = 1000
+          max_dist = .01
           for a = 1 to 2 do
             from = String(a_nodes[a])
             for b = 1 to 2 do
               to = String(b_nodes[b])
-              dist = GetMatrixValue(mtx_cur, from, to)
-              if nz(dist) > 0 then min_dist = min(min_dist, dist)
+
+              // Check for the minimum distance in both directions
+              dist_ab = GetMatrixValue(mtx_cur, from, to)
+              dist_ba = GetMatrixValue(mtx_cur, to, from)
+              if nz(dist_ab) > 0 then min_dist = min(min_dist, dist_ab)
+              if nz(dist_ba) > 0 then min_dist = min(min_dist, dist_ba)
+
+              // Check the maximum using the proper direction, which will
+              // always be the shorter of dist_ab and dist_ba.
+              if dist_ab < dist_ba then do
+                if nz(dist_ab) > 0 then max_dist = max(max_dist, dist_ab)
+              end else do
+                if nz(dist_ba) > 0 then max_dist = max(max_dist, dist_ba)
+              end
             end
           end
 
-          a_min_dist = a_min_dist + {min_dist}
+          a_avg_dist = a_avg_dist + {(min_dist + max_dist) / 2}
         end
-        v_dist = A2V(a_min_dist)
+        v_dist = A2V(a_avg_dist)
 
         // Create a table with the buffer link ids
         // and their distances to the project link.
