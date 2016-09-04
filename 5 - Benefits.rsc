@@ -702,8 +702,24 @@ dBox "Benefits" center,center,170,35 toolbox NoKeyboard Title:"Benefit Calculati
 
         // Add distance and distance decay info
         DATA.dist2link = v_dist
-        // Set distance floor to .5 miles. Use (1/dist)^.5
-        DATA.DistWeight = Pow(1 / max(.5, v_dist), .5)
+        // Set distance floor to .5 miles.
+        v_dist = max(v_dist, .5)
+        // Use (1/dist)^.5
+        /*DATA.DistWeight = Pow(1 / max(.5, v_dist), .5)*/
+
+        // Use (1 - dist / buffer) ^ 4
+        DATA.DistWeight = Pow(1 - v_dist / DATA.buffer, 4)
+        /* The average distance could be longer than the buffer for two reasons
+        1. The "touching" inclusion setting in SelectByVicinity
+        2. The difference between network skim distance and straightline buffer
+
+        If the average distance is larger than the buffer, the DistWeight
+        function starts going positive again.  Set it to zero if that happens.
+        This prevents that link from contributing any secondary benefits at all.
+
+        In effect, this trims the buffer links down to only those that can
+        reach the project link, along the network, within the buffer distance.*/
+        DATA.DistWeight = if DATA.dist2link > buffer then 0 else DATA.DistWeight
 
         // Build the FINAL table by binding DATA to it
         // after each loop
