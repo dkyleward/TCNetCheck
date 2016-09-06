@@ -264,7 +264,8 @@ dBox "Benefits" center,center,170,35 toolbox NoKeyboard Title:"Benefit Calculati
       totCapDiff = VectorStatistic(v_capCheck,"sum",)
 
       // If the project has changed capacity, add it to the list
-      if totCapDiff <> 0 then do
+      // Also, the first proj ID will be 0.  Ignore it.
+      if totCapDiff <> 0 and curProjID <> 0 then do
         a_projID = a_projID + {curProjID}
       end
     end
