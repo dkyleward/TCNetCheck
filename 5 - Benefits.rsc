@@ -535,6 +535,10 @@ dBox "Benefits" center,center,170,35 toolbox NoKeyboard Title:"Benefit Calculati
     mtx_cores = GetMatrixCoreNames(mtx)
     mtx_cur = CreateMatrixCurrency(mtx, mtx_cores[1], ri, ci, )
 
+    // Create two node fields on the line layer to display from/to node IDs
+    from_node = CreateNodeField(llayer, "from_node", nlayer + ".ID", "From", )
+    to_node = CreateNodeField(llayer, "to_node", nlayer + ".ID", "To", )
+
     /*
     Loop over each project.
 
@@ -546,10 +550,16 @@ dBox "Benefits" center,center,170,35 toolbox NoKeyboard Title:"Benefit Calculati
       (while looping over the proj links)
     linkBufferSet
       Selection of links within the buffer distance around the current proj link
+
+    In addition, the linkSet and linkBufferSet also have their nodes selected.
     */
     projectSet = RunMacro("G30 create set","current project")
     linkSet = RunMacro("G30 create set", "project's link")
+    linkSet_nodes = RunMacro("G30 create set", "project's link's nodes")
     linkBufferSet = RunMacro("G30 create set", "project's link's buffer")
+    linkBufferSet_nodes = RunMacro(
+      "G30 create set", "project's link's buffer's nodes"
+    )
 
     DATA = null
 
@@ -614,23 +624,115 @@ dBox "Benefits" center,center,170,35 toolbox NoKeyboard Title:"Benefit Calculati
         length = llayer.Length
         vmt_change = abs(ab_vol_change + ba_vol_change) * length
 
-        // Select the current link
+        // Select the current link and it's nodes
+        SetLayer(llayer)
         qry = "Select * where ID = " + String(id)
         SelectByQuery(linkSet, "Several", qry)
+        SetLayer(nlayer)
+        SelectByLinks(linkSet_nodes, "Several", linkSet, )
 
         // Select all links within the buffer distance of the current project
         // link and collect their link IDs.  Don't include links from the
         // current project in the set.  Other projects' links can be included.
         // They may have secondary benefits (mixed benefit type).
+        SetLayer(llayer)
         opts = null
         opts.Inclusion = "Intersecting"
         opts.[Source Not] = projectSet
         SelectByVicinity(
           linkBufferSet, "Several", llayer + "|" + linkSet, buffer, opts
         )
-        v_bufferLinkIDs = GetDataVector(llayer + "|" + linkBufferSet, "ID", opts)
 
-        // Determine distance between buffer links and project link
+        // Collect ID information on the buffer links and create a table.
+        v_bufferLinkIDs = GetDataVector(llayer + "|" + linkBufferSet, "ID", opts)
+        v_bufferLink_fnode = GetDataVector(
+          llayer + "|" + linkBufferSet, "from_node", opts
+        )
+        v_bufferLink_tnode = GetDataVector(
+          llayer + "|" + linkBufferSet, "to_node", opts
+        )
+        buffer_tbl = null
+        buffer_tbl.link_id = v_bufferLinkIDs
+        buffer_tbl.from_node = v_bufferLink_fnode
+        buffer_tbl.to_node = v_bufferLink_tnode
+
+        // Select the buffer link's nodes as well
+        SetLayer(nlayer)
+        opts = null
+        opts.[Source Not] = linkSet_nodes
+        SelectByLinks(linkBufferSet_nodes, "Several", linkBufferSet, opts)
+
+        // Create indices for proj link nodes and buffer nodes
+        // Delete any that already exist
+        a_ind_names = GetMatrixIndexNames(mtx)
+        a_ind_names = a_ind_names[1]
+        if ArrayPosition(a_ind_names, {"proj_link"}, ) <> 0 then
+          DeleteMatrixIndex(mtx, "proj_link")
+        link_index = CreateMatrixIndex(
+          "proj_link", mtx, "Both", nlayer + "|" + linkSet_nodes,
+          "ID", "ID"
+        )
+        if ArrayPosition(a_ind_names, {"buffer_link"}, ) <> 0 then
+          DeleteMatrixIndex(mtx, "buffer_link")
+        buffer_index = CreateMatrixIndex(
+          "buffer_link", mtx, "Both", nlayer + "|" + linkBufferSet_nodes,
+          "ID", "ID"
+        )
+
+        // Create currencies for each direction of travel (from project link
+        // and to project link).
+        from_link_cur = CreateMatrixCurrency(
+          mtx, mtx_cores[1], link_index, buffer_index,
+        )
+        to_link_cur = CreateMatrixCurrency(
+          mtx, mtx_cores[1], buffer_index, link_index,
+        )
+
+        // Get distance vectors from skim matrix.   Collect for both proj nodes
+        // and in both directions (4 vectors)
+        SetLayer(llayer)
+        a_nodes = GetEndpoints(id)
+        DIST = null
+        opts = null
+        opts.Index = "Row"
+        DIST.buffer_node = GetMatrixVector(to_link_cur, opts)
+        DIST.buffer_node.rowbased  ="True"
+        for n = 1 to a_nodes.length do
+          node = a_nodes[n]
+
+          opts = null
+          opts.Row = node
+          DIST.("from_" + String(node)) = GetMatrixVector(from_link_cur, opts)
+          DIST.("from_" + String(node)).rowbased = "True"
+          opts = null
+          opts.Column = node
+          DIST.("to_" + String(node)) = GetMatrixVector(to_link_cur, opts)
+          DIST.("to_" + String(node)).rowbased = "True"
+        end
+
+        DIST.min_to = min(DIST.("to_" + String(a_nodes[1])), DIST.("to_" + String(a_nodes[2])))
+        DIST.min_from = min(DIST.("from_" + String(a_nodes[1])), DIST.("from_" + String(a_nodes[2])))
+        DIST.direction = if DIST.min_to < DIST.min_from then "to" else "from"
+        DIST.min_dist = min(DIST.min_to, DIST.min_from)
+        DIST.max_dist = if DIST.direction = "to"
+          then max(DIST.("to_" + String(a_nodes[1])), DIST.("to_" + String(a_nodes[2])))
+          else max(DIST.("from_" + String(a_nodes[1])), DIST.("from_" + String(a_nodes[2])))
+        DIST.avg_dist = (DIST.max_dist + DIST.min_dist) / 2
+
+        // To check/debug the distance table calculations
+        /*RunMacro("Write Table", DIST, Args.Benefits.outputDir + "/distances.csv")
+        Throw("Check distances.csv")*/
+
+        // Join the DIST table to the buffer table twice - once for each node
+        // on the buffer link
+        DIST = RunMacro("Select", DIST, {"buffer_node", "avg_dist"})
+        buffer_tbl = RunMacro("Join Tables", buffer_tbl, "from_node", DIST, "buffer_node")
+        buffer_tbl = RunMacro("Rename Field", buffer_tbl, "avg_dist", "avg_dist1")
+        buffer_tbl = RunMacro("Join Tables", buffer_tbl, "to_node", DIST, "buffer_node")
+        buffer_tbl = RunMacro("Rename Field", buffer_tbl, "avg_dist", "avg_dist2")
+        buffer_tbl.avg_dist = (buffer_tbl.avg_dist1 + buffer_tbl.avg_dist2) / 2
+
+        /*// Determine distance between buffer links and project link
         // Each link will have four nodal distance values to choose from.
         // (Two nodes for buffer link and two for project link.)
         // Take the average of the largest and smallest distance.
@@ -666,12 +768,12 @@ dBox "Benefits" center,center,170,35 toolbox NoKeyboard Title:"Benefit Calculati
 
           a_avg_dist = a_avg_dist + {(min_dist + max_dist) / 2}
         end
-        v_dist = A2V(a_avg_dist)
+        v_dist = A2V(a_avg_dist)*/
 
         // Create a table with the buffer link ids
         // and their distances to the project link.
         DATA = null
-        DATA.BufferLinkID = v_bufferLinkIDs
+        DATA.BufferLinkID = buffer_tbl.link_id
 
         // Collect secondary info and add to table
         ABSecBen = GetDataVector(llayer + "|" + linkBufferSet, "ABSecBen", )
@@ -701,14 +803,14 @@ dBox "Benefits" center,center,170,35 toolbox NoKeyboard Title:"Benefit Calculati
         DATA.buffer = v_temp
 
         // Add distance and distance decay info
-        DATA.dist2link = v_dist
+        DATA.dist2link = buffer_tbl.avg_dist
         // Set distance floor to .5 miles.
-        v_dist = max(v_dist, .5)
+        DATA.dist2link = max(DATA.dist2link, .5)
         // Use (1/dist)^.5
         /*DATA.DistWeight = Pow(1 / max(.5, v_dist), .5)*/
 
         // Use (1 - dist / buffer) ^ 4
-        DATA.DistWeight = Pow(1 - v_dist / DATA.buffer, 4)
+        DATA.DistWeight = Pow(1 - DATA.dist2link / DATA.buffer, 4)
         /* The average distance could be longer than the buffer for two reasons
         1. The "touching" inclusion setting in SelectByVicinity
         2. The difference between network skim distance and straightline buffer
@@ -725,12 +827,7 @@ dBox "Benefits" center,center,170,35 toolbox NoKeyboard Title:"Benefit Calculati
         // after each loop
         if p = 1 and i = 1 then do
           FINAL = DATA
-          test1 = p
-          test2 = i
-          test3 = ""
         end else do
-          test1 = p
-          test2 = i
           FINAL = RunMacro("Bind Rows", FINAL, DATA)
         end
       end
