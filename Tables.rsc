@@ -604,6 +604,15 @@ Macro "Join Tables" (master_tbl, m_id, slave_tbl, s_id)
     end
   end
 
+  // Clean up the workspace
+  CloseView(jv)
+  CloseView(master_view)
+  DeleteFile(master_file)
+  DeleteFile(Substitute(master_file, ".bin", ".DCB", ))
+  CloseView(slave_view)
+  DeleteFile(slave_file)
+  DeleteFile(Substitute(slave_file, ".bin", ".DCB", ))
+
   return(TABLE)
 EndMacro
 
