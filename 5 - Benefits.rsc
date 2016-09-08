@@ -588,8 +588,8 @@ dBox "Benefits" center,center,170,35 toolbox NoKeyboard Title:"Benefit Calculati
       if n = 0 then Throw("No project records found")
 
       // Determine buffer distance
-      v_proj_length = GetDataVector(llayer + "|" + projectSet, "Length", )
-      proj_length = VectorStatistic(v_proj_length, "sum", )
+      v_proj_length = GetDataVector(llayer + "|" + projectSet, "ProjectLength", )
+      proj_length = v_proj_length[1]
       buffer = proj_length * .75
       buffer = max(buffer, 1.5)
       buffer = min(buffer, 10)
