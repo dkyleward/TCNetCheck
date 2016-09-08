@@ -463,7 +463,7 @@ dBox "Benefits" center,center,170,35 toolbox NoKeyboard Title:"Benefit Calculati
 
 
     /*
-    Secondary delay allocation
+    Secondary benefit allocation
     */
 
     // Loop over each project ID and determine the length
