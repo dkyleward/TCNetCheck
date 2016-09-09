@@ -35,7 +35,7 @@ Returns a GISDK options array that represents a table.
 a_colNames: Array of strings of column names
 a_data: array of vectors.  Each must be the same length
 
-See the "Read View" function for creating a table object
+See the "View to Table" function for creating a table object
 from an existing view.  See "Read Matrix" for matrix
 conversion.
 */
@@ -134,14 +134,14 @@ EndMacro
 
 
 /*
-Read View
+View to Table
 
 This macro converts a view into a table object.
 view (string): TC view name
 set (string): optional set name
 */
 
-Macro "Read View" (view, set)
+Macro "View to Table" (view, set)
 
   // Check for required arguments
   if view = null then do
@@ -178,35 +178,34 @@ handle, core name, and row/column index to convert.
 
 */
 
-Macro "Read Matrix" (mtxcur)
+Macro "Matrix to Table" (mtxcur)
 
   // Validate arguments
   if mtxcur.matrix.Name = null then do
     Throw("mtxcur variable must be a matrix currency")
   end
 
-  // Get row and column indices first
+  // Create a temporary bin file
+  file_name = GetTempFileName(".bin")
+
+  // Set the matrix index and export to a table
+  SetMatrixIndex(mtxcur.matrix, mtxcur.rowindex, mtxcur.colindex)
   opts = null
-  opts.Index = "Row"
-  v_ri = GetMatrixVector(mtxcur, opts)
-  opts.Index = "Column"
-  v_ci = GetMatrixVector(mtxcur, opts)
+  opts.Tables = {mtxcur.corename}
+  CreateTableFromMatrix(mtxcur.matrix, file_name, "FFB", opts)
 
-  // Create first column of the table object
-  TABLE.(" ") = v_ri
+  // Open exported table into view
+  view = OpenTable("view", "FFB", {file_name})
 
-  // Create the remaining columns
-  for c = 1 to v_ci.length do
-    col = v_ci[c]
+  // Read the view into a table
+  TABLE = RunMacro("View to Table", view)
 
-    opts = null
-    opts.Column = col
-    v_data = nz(GetMatrixVector(mtxcur, opts))
-    TABLE.(String(col)) = v_data
-  end
+  // Clean up workspace
+  CloseView(view)
+  DeleteFile(file_name)
+  DeleteFile(Substitute(file_name, ".bin", ".DCB", ))
 
   return(TABLE)
-
 EndMacro
 
 /*
@@ -370,7 +369,7 @@ Macro "Summarize" (TABLE, a_groupFields, agg)
   /*agg_view = SelfAggregate("aggview", agg_field_spec, opts1)*/
 
   // Read the view into a table object
-  TBL = RunMacro("Read View", agg_view)
+  TBL = RunMacro("View to Table", agg_view)
 
   // The field names from SelfAggregate() are messy.  Clean up.
   // The first fields will be of the format "GroupedBy(ID)".
@@ -469,7 +468,7 @@ Macro "Filter Table" (TABLE, query)
   SetView(view)
   query = "Select * where " + query
   SelectByQuery("set", "Several", query)
-  TBL = RunMacro("Read View", view, "set")
+  TBL = RunMacro("View to Table", view, "set")
 
   return(TBL)
 EndMacro
@@ -487,7 +486,15 @@ new_name: desired new name of the field
 
 Macro "Rename Field" (TABLE, current_name, new_name)
 
-  // If a single field, convert string to array
+  // Argument checking
+  if TypeOf(current_name) <> TypeOf(new_name)
+    then Throw("Rename Field: current and new name must be same type")
+  if TypeOf(current_name) <> string then do
+    if current_name.lenth <> new_name.length
+      then Throw("Rename Field: Field name arrays must be same length")
+  end
+
+  // If a single field string, convert string to array
   if TypeOf(current_name) = "string" then do
     current_name = {current_name}
   end
@@ -505,6 +512,36 @@ Macro "Rename Field" (TABLE, current_name, new_name)
   end
 
   return(TABLE)
+EndMacro
+
+/*
+Sets the names of a table.  Unlike "Rename Field", it doesn't
+matter what the current names are.
+
+Inputs:
+a_names
+  Array
+  Array of strings that are the field names.  Must be the same
+  length as the table object.
+
+Returns:
+Table object with new names
+*/
+
+Macro "Set Table Names" (TABLE, a_names)
+
+  // Argument checking
+  if TABLE.length <> a_names.length
+    then Throw("Set Table Names: Argument 'a_names' must\n" +
+      "be the same length as table object."
+    )
+
+  NEWTABLE = TABLE
+  for c = 1 to TABLE.length do
+    NEWTABLE[c][1] = a_names[c]
+  end
+
+  return(NEWTABLE)
 EndMacro
 
 /*
@@ -583,7 +620,7 @@ Macro "Join Tables" (master_tbl, m_id, slave_tbl, s_id)
   end
 
   jv = JoinViewsMulti("jv", m_spec, s_spec, )
-  TABLE = RunMacro("Read View", jv)
+  TABLE = RunMacro("View to Table", jv)
 
   // JoinViewsMulti() will attach the view names to the m_id and s_id fields
   // if they are the same.
