@@ -36,7 +36,7 @@ a_colNames: Array of strings of column names
 a_data: array of vectors.  Each must be the same length
 
 See the "View to Table" function for creating a table object
-from an existing view.  See "Read Matrix" for matrix
+from an existing view.  See "Matrix to Table" for matrix
 conversion.
 */
 Macro "Create Table" (a_colNames, a_data)
