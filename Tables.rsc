@@ -489,7 +489,7 @@ Macro "Rename Field" (TABLE, current_name, new_name)
   // Argument checking
   if TypeOf(current_name) <> TypeOf(new_name)
     then Throw("Rename Field: current and new name must be same type")
-  if TypeOf(current_name) <> string then do
+  if TypeOf(current_name) <> "string" then do
     if current_name.lenth <> new_name.length
       then Throw("Rename Field: Field name arrays must be same length")
   end
