@@ -546,10 +546,13 @@ dBox "Benefits" center,center,170,35 toolbox NoKeyboard Title:"Benefit Calculati
     Opts.Output.[Output Matrix].[File Name] = mtx_file
     ret = RunMacro("TCB Run Procedure", "TCSPMAT", Opts, &Ret)
 
+    // Open the matrix, create a currency, and convert
+    // nulls (diagonal) to zeros.
     mtx = OpenMatrix(mtx_file, )
     {ri, ci} = GetMatrixIndex(mtx)
     mtx_cores = GetMatrixCoreNames(mtx)
     mtx_cur = CreateMatrixCurrency(mtx, mtx_cores[1], ri, ci, )
+    mtx_cur := nz(mtx_cur)
 
     // Create two node fields on the line layer to display from/to node IDs
     from_node = CreateNodeField(llayer, "from_node", nlayer + ".ID", "From", )
