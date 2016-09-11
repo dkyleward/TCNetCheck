@@ -675,11 +675,11 @@ dBox "Benefits" center,center,170,35 toolbox NoKeyboard Title:"Benefit Calculati
         buffer_tbl.from_node = v_bufferLink_fnode
         buffer_tbl.to_node = v_bufferLink_tnode
 
-        // Select the buffer link's nodes as well
+        // Select the buffer link's nodes as well. Allow the current link's
+        // nodes to be selected, too.  Distances used are link-to-link, and
+        // are calculated by averaging distances between the 4 node pairs.
         SetLayer(nlayer)
-        opts = null
-        opts.[Source Not] = linkSet_nodes
-        SelectByLinks(linkBufferSet_nodes, "Several", linkBufferSet, opts)
+        SelectByLinks(linkBufferSet_nodes, "Several", linkBufferSet, )
 
         // Create indices for proj link nodes and buffer nodes
         // Delete any that already exist
