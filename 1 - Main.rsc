@@ -155,8 +155,8 @@ dBox "Main" center,center,125,25 toolbox NoKeyboard Title:"Network Check Tool"
   enditem
 
   button "Benefit Calculation" same, after, 23 do
-    if Args.General.hwyDBD = null
-    then ShowMessage("At a minimum, the highway DBD \nmust be specified using 'Tool Setup'.")
+    if Args.General.ccClass = null
+    then ShowMessage("The centroid connector class \nmust be specified using 'Tool Setup'.")
     else RunDbox("Benefits")
   enditem
 
