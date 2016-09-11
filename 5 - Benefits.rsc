@@ -739,8 +739,11 @@ dBox "Benefits" center,center,170,35 toolbox NoKeyboard Title:"Benefit Calculati
         DIST.avg_dist = (DIST.max_dist + DIST.min_dist) / 2
 
         // To check/debug the distance table calculations
-        /*RunMacro("Write Table", DIST, Args.Benefits.outputDir + "/distances.csv")
-        Throw("Check distances.csv")*/
+        if p = 1 and i = 1
+          then RunMacro(
+            "Write Table", DIST, Args.Benefits.outputDir +
+            "/check distance calc - proj 1 link 1.csv"
+          )
 
         // Join the DIST table to the buffer table twice - once for each node
         // on the buffer link
