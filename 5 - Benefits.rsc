@@ -142,45 +142,64 @@ dBox "Benefits" center,center,170,35 toolbox NoKeyboard Title:"Benefit Calculati
     skipfolder:
     on error default
 
+    // Create a copy of the all-build dbd without centroid connectors
+    // (Exporting is much faster than copying and deleting links)
+    Args.Benefits.resultHwy = Args.Benefits.outputDir + "BenefitCalculation.dbd"
+    {nlayer, llayer} = GetDBLayers(Args.Benefits.allBuildHwy)
+    llayer = AddLayerToWorkspace(llayer, Args.Benefits.allBuildHwy, llayer)
+    SetLayer(llayer)
+    ccClass = if TypeOf(Args.General.ccClass) = "string"
+      then "'" + Args.General.ccClass + "'"
+      else String(Args.General.ccClass)
+    qry = "Select * where " + Args.General.fClass + " <> " + ccClass
+    n = SelectByQuery("non-CCs", "Several", qry)
+    opts = null
+    {, opts.[Field Spec]} = GetFields(llayer, "All")
+    ExportGeography(llayer + "|non-CCs", Args.Benefits.resultHwy, opts)
+    DropLayerFromWorkspace(llayer)
+
+    // Open the result highway layer
+    {nlayer, llayer} = GetDBLayers(Args.Benefits.resultHwy)
+    llayer = AddLayerToWorkspace(llayer, Args.Benefits.resultHwy, llayer)
+
     // In this code "ab" and "nb" stand for "all build" and "no build"
     // Directionality (AB/BA) will be capitalized to avoid confusion
 
-    // Open the allbuild hwy and join the nobuild to it
-    a_allBuildLayers = GetDBLayers(Args.Benefits.allBuildHwy)
+    // Join the nobuild layer to the result layer
     a_noBuildLayers = GetDBLayers(Args.Benefits.noBuildHwy)
-    allBuildLayer = AddLayerToWorkspace(a_allBuildLayers[2],Args.Benefits.allBuildHwy,a_allBuildLayers[2])
     noBuildLayer = AddLayerToWorkspace(a_noBuildLayers[2],Args.Benefits.noBuildHwy,a_noBuildLayers[2])
-    dv_join = JoinViews("allbuild+nobuild",allBuildLayer+".ID",noBuildLayer+".ID",)
+    dv_join = JoinViews("allbuild+nobuild",llayer+".ID",noBuildLayer+".ID",)
     SetView(dv_join)
 
-    // Collect projID,vol, cap, and time measures
+    // Collect projID, vol, cap, and time measures
+    // (convert any nulls to zeros)
     Opts = null
     Opts.[Missing As Zero] = "True"
-    v_linkID = GetDataVector(dv_join + "|",allBuildLayer + ".ID",Opts)
-    v_length = GetDataVector(dv_join + "|",allBuildLayer + ".Length",Opts)
-    v_allprojid = GetDataVector(dv_join + "|",allBuildLayer + "." + Args.Benefits.projID,Opts)
-    // all build values (convert any nulls to zeros)
-    v_abABffSpeed = nz(GetDataVector(dv_join + "|",allBuildLayer + "." + Args.Benefits.abffSpeed,Opts))
-    v_abBAffSpeed = nz(GetDataVector(dv_join + "|",allBuildLayer + "." + Args.Benefits.baffSpeed,Opts))
-    v_abABVol = nz(GetDataVector(dv_join + "|",allBuildLayer + "." + Args.Benefits.abFlow,Opts))
-    v_abBAVol = nz(GetDataVector(dv_join + "|",allBuildLayer + "." + Args.Benefits.baFlow,Opts))
-    v_abABCap = nz(GetDataVector(dv_join + "|",allBuildLayer + "." + Args.Benefits.abCap,Opts))
-    v_abBACap = nz(GetDataVector(dv_join + "|",allBuildLayer + "." + Args.Benefits.baCap,Opts))
-    v_abABDelay = nz(GetDataVector(dv_join + "|",allBuildLayer + "." + Args.Benefits.abDelay,Opts))
-    v_abBADelay = nz(GetDataVector(dv_join + "|",allBuildLayer + "." + Args.Benefits.baDelay,Opts))
+    v_linkID = GetDataVector(dv_join + "|", llayer + ".ID", Opts)
+    v_length = GetDataVector(dv_join + "|", llayer + ".Length", Opts)
+    v_allprojid = GetDataVector(dv_join + "|", llayer + "." + Args.Benefits.projID, Opts)
+    // all build values
+    v_abABffSpeed = nz(GetDataVector(dv_join + "|", llayer + "." + Args.Benefits.abffSpeed, Opts))
+    v_abBAffSpeed = nz(GetDataVector(dv_join + "|", llayer + "." + Args.Benefits.baffSpeed, Opts))
+    v_abABVol = nz(GetDataVector(dv_join + "|", llayer + "." + Args.Benefits.abFlow, Opts))
+    v_abBAVol = nz(GetDataVector(dv_join + "|", llayer + "." + Args.Benefits.baFlow, Opts))
+    v_abABCap = nz(GetDataVector(dv_join + "|", llayer + "." + Args.Benefits.abCap, Opts))
+    v_abBACap = nz(GetDataVector(dv_join + "|", llayer + "." + Args.Benefits.baCap, Opts))
+    v_abABDelay = nz(GetDataVector(dv_join + "|", llayer + "." + Args.Benefits.abDelay, Opts))
+    v_abBADelay = nz(GetDataVector(dv_join + "|", llayer + "." + Args.Benefits.baDelay, Opts))
     // no build values
-    v_nbABffSpeed = nz(GetDataVector(dv_join + "|",noBuildLayer + "." + Args.Benefits.abffSpeed,Opts))
-    v_nbBAffSpeed = nz(GetDataVector(dv_join + "|",noBuildLayer + "." + Args.Benefits.baffSpeed,Opts))
-    v_nbABVol = nz(GetDataVector(dv_join + "|",noBuildLayer + "." + Args.Benefits.abFlow,Opts))
-    v_nbBAVol = nz(GetDataVector(dv_join + "|",noBuildLayer + "." + Args.Benefits.baFlow,Opts))
-    v_nbABCap = nz(GetDataVector(dv_join + "|",noBuildLayer + "." + Args.Benefits.abCap,Opts))
-    v_nbBACap = nz(GetDataVector(dv_join + "|",noBuildLayer + "." + Args.Benefits.baCap,Opts))
-    v_nbABDelay = nz(GetDataVector(dv_join + "|",noBuildLayer + "." + Args.Benefits.abDelay,Opts))
-    v_nbBADelay = nz(GetDataVector(dv_join + "|",noBuildLayer + "." + Args.Benefits.baDelay,Opts))
+    v_nbABffSpeed = nz(GetDataVector(dv_join + "|", noBuildLayer + "." + Args.Benefits.abffSpeed, Opts))
+    v_nbBAffSpeed = nz(GetDataVector(dv_join + "|", noBuildLayer + "." + Args.Benefits.baffSpeed, Opts))
+    v_nbABVol = nz(GetDataVector(dv_join + "|", noBuildLayer + "." + Args.Benefits.abFlow, Opts))
+    v_nbBAVol = nz(GetDataVector(dv_join + "|", noBuildLayer + "." + Args.Benefits.baFlow, Opts))
+    v_nbABCap = nz(GetDataVector(dv_join + "|", noBuildLayer + "." + Args.Benefits.abCap, Opts))
+    v_nbBACap = nz(GetDataVector(dv_join + "|", noBuildLayer + "." + Args.Benefits.baCap, Opts))
+    v_nbABDelay = nz(GetDataVector(dv_join + "|", noBuildLayer + "." + Args.Benefits.abDelay, Opts))
+    v_nbBADelay = nz(GetDataVector(dv_join + "|", noBuildLayer + "." + Args.Benefits.baDelay, Opts))
 
     CloseView(dv_join)
-    DropLayerFromWorkspace(allBuildLayer)
-    DropLayerFromWorkspace(noBuildLayer )
+    DropLayerFromWorkspace(llayer)
+    DropLayerFromWorkspace(noBuildLayer)
 
     // Calculate absolute and pct changes from no build to build
     v_ABVolDiff = v_abABVol - v_nbABVol
@@ -400,15 +419,11 @@ dBox "Benefits" center,center,170,35 toolbox NoKeyboard Title:"Benefit Calculati
     v_baSecBen = if ( v_baSecBen < .0001 and v_baSecBen > -.0001 ) then 0
       else v_baSecBen
 
-    // Create a copy of the all-build dbd
-    path = SplitPath(Args.Benefits.allBuildHwy)
-    Args.Benefits.outputDir = path[1] + path[2] + "\\BenefitCalculation\\"
-    Args.Benefits.resultHwy = Args.Benefits.outputDir + "BenefitCalculation.dbd"
-    CopyDatabase(Args.Benefits.allBuildHwy,Args.Benefits.resultHwy)
-
-    // Modify the structure to add benefit-related fields
+    // Modify the structure of the result hwy file
+    // to add benefit-related fields
+    {nlayer, llayer} = GetDBLayers(Args.Benefits.resultHwy)
     dv_temp = AddLayerToWorkspace(
-      Args.Benefits.llayer,Args.Benefits.resultHwy,Args.Benefits.llayer,
+      llayer, Args.Benefits.resultHwy, llayer,
     )
     strct = GetTableStructure(dv_temp)
     for i = 1 to strct.length do
