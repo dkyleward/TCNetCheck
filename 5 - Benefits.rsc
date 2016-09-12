@@ -677,7 +677,7 @@ dBox "Benefits" center,center,170,35 toolbox NoKeyboard Title:"Benefit Calculati
 
         // Select the buffer link's nodes as well. Allow the current link's
         // nodes to be selected, too.  Distances used are link-to-link, and
-        // are calculated by averaging distances between the 4 node pairs.
+        // are calculated by averaging node distances.
         SetLayer(nlayer)
         SelectByLinks(linkBufferSet_nodes, "Several", linkBufferSet, )
 
@@ -736,7 +736,6 @@ dBox "Benefits" center,center,170,35 toolbox NoKeyboard Title:"Benefit Calculati
         DIST.max_dist = if DIST.direction = "to"
           then max(DIST.("to_" + String(a_nodes[1])), DIST.("to_" + String(a_nodes[2])))
           else max(DIST.("from_" + String(a_nodes[1])), DIST.("from_" + String(a_nodes[2])))
-        DIST.avg_dist = (DIST.max_dist + DIST.min_dist) / 2
 
         // To check/debug the distance table calculations
         if p = 1 and i = 1
@@ -747,12 +746,15 @@ dBox "Benefits" center,center,170,35 toolbox NoKeyboard Title:"Benefit Calculati
 
         // Join the DIST table to the buffer table twice - once for each node
         // on the buffer link
-        DIST = RunMacro("Select", DIST, {"buffer_node", "avg_dist"})
+        // The average distance is calculated from both buffer link nodes to
+        // the nearest project node.  This removes bias against long project
+        // links.
+        DIST = RunMacro("Select", DIST, {"buffer_node", "min_dist"})
         buffer_tbl = RunMacro("Join Tables", buffer_tbl, "from_node", DIST, "buffer_node")
-        buffer_tbl = RunMacro("Rename Field", buffer_tbl, "avg_dist", "avg_dist1")
+        buffer_tbl = RunMacro("Rename Field", buffer_tbl, "min_dist", "min_dist1")
         buffer_tbl = RunMacro("Join Tables", buffer_tbl, "to_node", DIST, "buffer_node")
-        buffer_tbl = RunMacro("Rename Field", buffer_tbl, "avg_dist", "avg_dist2")
-        buffer_tbl.avg_dist = (buffer_tbl.avg_dist1 + buffer_tbl.avg_dist2) / 2
+        buffer_tbl = RunMacro("Rename Field", buffer_tbl, "min_dist", "min_dist2")
+        buffer_tbl.avg_dist = (buffer_tbl.min_dist1 + buffer_tbl.min_dist2) / 2
 
         // Create a table with the buffer link ids
         // and their distances to the project link.
