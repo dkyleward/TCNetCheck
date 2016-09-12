@@ -608,8 +608,7 @@ dBox "Benefits" center,center,170,35 toolbox NoKeyboard Title:"Benefit Calculati
       // Determine buffer distance
       v_proj_length = GetDataVector(llayer + "|" + projectSet, "ProjectLength", )
       proj_length = v_proj_length[1]
-      buffer = proj_length * .75
-      buffer = max(buffer, 1.5)
+      buffer = proj_length
       buffer = min(buffer, 10)
 
       // Loop over each link of the current project
