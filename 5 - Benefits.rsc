@@ -134,6 +134,8 @@ dBox "Benefits" center,center,170,35 toolbox NoKeyboard Title:"Benefit Calculati
   // Actual calculation
   button 20, 16, 23 Prompt:"Calculate Project Benefits" do
 
+    CreateProgressBar("Calculating Benfeits", "True")
+
     // Create the output directory
     path = SplitPath(Args.Benefits.allBuildHwy)
     Args.Benefits.outputDir = path[1] + path[2] + "\\BenefitCalculation\\"
@@ -926,6 +928,7 @@ dBox "Benefits" center,center,170,35 toolbox NoKeyboard Title:"Benefit Calculati
       ShowMessage(warningString)
     end
 
+    DestroyProgressBar()
     ShowMessage("Done calculating benefits")
     quit:
   enditem
