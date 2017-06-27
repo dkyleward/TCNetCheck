@@ -286,7 +286,7 @@ dBox "Benefits" center,center,170,35 toolbox NoKeyboard Title:"Benefit Calculati
 
       // If the project has changed capacity, add it to the list
       // Also, if the first proj ID is 0, ignore it.
-      if totCapDiff <> 0 and then do
+      if totCapDiff <> 0 then do
         zero = if TypeOf(curProjID) = "string" then "0" else 0
         if curProjID = zero then continue
         a_projID = a_projID + {curProjID}
