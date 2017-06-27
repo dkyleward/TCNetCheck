@@ -404,7 +404,9 @@ dBox "Benefits" center,center,170,35 toolbox NoKeyboard Title:"Benefit Calculati
       file = OpenFile(testCSV,"w")
       WriteLine(file,"ProjID,nbCap,totDelayDiff,totCapDiff,totVolDiff,Type,abCapRatio,baCapRatio,abVolRatio,baVolRatio,abPrimBen,baPrimBen,abSecBen,baSecBen")
       for i = 1 to v_linkCategory.length do
-        WriteLine(file, String(v_allprojid[i]) + "," + String(v_nbABCap[i] + v_nbBACap[i]) + "," + String(v_totDelayDiff[i]) + "," + String(v_totCapDiff[i]) + "," + String(v_totVolDiff[i])
+        pID = v_allprojid[i]
+        pID = if TypeOf(pID) <> "string" then String(pID) else pID
+        WriteLine(file, pID + "," + String(v_nbABCap[i] + v_nbBACap[i]) + "," + String(v_totDelayDiff[i]) + "," + String(v_totCapDiff[i]) + "," + String(v_totVolDiff[i])
           + "," + v_linkCategory[i] + "," + String(v_abCapRatio[i]) + "," + String(v_baCapRatio[i]) + "," + String(v_abVolRatio[i]) + "," + String(v_baVolRatio[i]) + "," + String(v_abPrimBen[i]) + "," + String(v_baPrimBen[i])
           + "," + String(v_abSecBen[i]) + "," + String(v_baSecBen[i]))
       end
